@@ -584,10 +584,75 @@ function tableFilterChanged() {
         const el = document.getElementById('tf-'+k);
         if (el) tableColFilters[k] = el.value;
     });
+    // Cascade: update dropdown options based on currently matching data
+    updateCascadingDropdowns();
     currentPage = 1;
     renderTableBody();
     renderPagination(getTableFilteredCount());
     document.getElementById('view-count').textContent = getTableFilteredCount() + ' דירות';
+}
+
+function updateCascadingDropdowns() {
+    // Get the base dataset (main filter applied, before table column filters)
+    let base = filteredAptsCache;
+    const atv = tableColFilters.apt_type || '';
+    const cv = tableColFilters.city || '';
+    const nv = tableColFilters.neighborhood || '';
+
+    // For each dropdown, compute available options from data filtered by OTHER dropdowns
+    // Type options: filtered by city + neighborhood
+    let forType = base;
+    if (cv) forType = forType.filter(a => a.city === cv);
+    if (nv) forType = forType.filter(a => a.neighborhood === nv);
+    const typesSet = new Set();
+    forType.forEach(a => { if (a.apartment_type) typesSet.add(a.apartment_type); });
+
+    // City options: filtered by type + neighborhood
+    let forCity = base;
+    if (atv) forCity = forCity.filter(a => a.apartment_type === atv);
+    if (nv) forCity = forCity.filter(a => a.neighborhood === nv);
+    const citiesSet = new Set();
+    forCity.forEach(a => { if (a.city) citiesSet.add(a.city); });
+
+    // Neighborhood options: filtered by type + city
+    let forHood = base;
+    if (atv) forHood = forHood.filter(a => a.apartment_type === atv);
+    if (cv) forHood = forHood.filter(a => a.city === cv);
+    const hoodsSet = new Set();
+    forHood.forEach(a => { if (a.neighborhood) hoodsSet.add(a.neighborhood); });
+
+    // Rooms options: filtered by type + city + neighborhood
+    let forRooms = base;
+    if (atv) forRooms = forRooms.filter(a => a.apartment_type === atv);
+    if (cv) forRooms = forRooms.filter(a => a.city === cv);
+    if (nv) forRooms = forRooms.filter(a => a.neighborhood === nv);
+    const roomsSet = new Set();
+    forRooms.forEach(a => { if (a.rooms) roomsSet.add(parseFloat(a.rooms)); });
+
+    // Update each dropdown in the DOM
+    updateSelectOptions('tf-apt_type', [...typesSet].sort((a,b) => a.localeCompare(b,'he')), atv, v => v);
+    updateSelectOptions('tf-city', [...citiesSet].sort((a,b) => a.localeCompare(b,'he')), cv, v => v);
+    updateSelectOptions('tf-neighborhood', [...hoodsSet].sort((a,b) => a.localeCompare(b,'he')), nv, v => v);
+    updateSelectOptions('tf-rooms', [...roomsSet].sort((a,b) => a-b), tableColFilters.rooms || '', v => v + " חד'");
+}
+
+function updateSelectOptions(elId, options, currentVal, labelFn) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    // Remember if current value is still valid
+    const stillValid = !currentVal || options.some(v => String(v) === currentVal);
+    let html = '<option value="">הכל</option>';
+    options.forEach(v => {
+        const sv = String(v);
+        const sel = sv === currentVal ? ' selected' : '';
+        html += '<option value="'+esc(sv)+'"'+sel+'>'+esc(labelFn(v))+'</option>';
+    });
+    el.innerHTML = html;
+    // If selected value no longer valid, reset it
+    if (!stillValid) {
+        el.value = '';
+        tableColFilters[elId.replace('tf-','')] = '';
+    }
 }
 
 function getTableFiltered() {
