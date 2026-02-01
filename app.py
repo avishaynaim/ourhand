@@ -241,6 +241,11 @@ class Yad2Monitor:
 
     def _check_needs_initial_scrape(self) -> bool:
         """Check if we need to do a full initial scrape (DB is empty or very small)"""
+        # Check for force flag first
+        if os.environ.get('FORCE_INITIAL_SCRAPE', '').lower() in ('true', '1', 'yes'):
+            logger.info("🔄 FORCE_INITIAL_SCRAPE=true - forcing full site scrape")
+            return True
+
         try:
             all_apts = self.db.get_all_apartments(active_only=False, limit=self.INITIAL_SCRAPE_THRESHOLD + 1)
             count = len(all_apts)
