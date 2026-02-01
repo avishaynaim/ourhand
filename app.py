@@ -682,15 +682,42 @@ class Yad2Monitor:
             batch_delay = random.uniform(2, 5)
             time.sleep(batch_delay)
 
-        # RETRY failed pages
+        # RETRY failed pages with ±4 neighboring pages (apartments can shift between pages)
         if failed_pages:
-            logger.info(f"🔄 Retrying {len(failed_pages)} failed pages...")
-            for retry_page in failed_pages[:50]:  # Retry up to 50 failed pages
-                time.sleep(random.uniform(3, 6))
+            # Build set of pages to retry: failed pages + 4 before + 4 after each
+            pages_to_retry = set()
+            for fp in failed_pages:
+                for offset in range(-4, 5):  # -4 to +4 inclusive
+                    retry_p = fp + offset
+                    if 1 <= retry_p <= max_pages:
+                        pages_to_retry.add(retry_p)
+
+            pages_to_retry = sorted(pages_to_retry)
+            logger.info(f"🔄 Retrying {len(failed_pages)} failed pages + neighbors = {len(pages_to_retry)} pages total")
+
+            retry_apartments = []
+            retry_ok = 0
+            retry_fail = 0
+
+            for retry_page in pages_to_retry:
+                time.sleep(random.uniform(2, 4))
                 _, apts, status = self._fetch_page_for_batch((base_url, retry_page))
-                if apts:
-                    pending_apartments.extend(apts)
-                    logger.info(f"✅ Retry page {retry_page}: +{len(apts)} apartments")
+                if status == 'ok':
+                    retry_ok += 1
+                    if apts:
+                        retry_apartments.extend(apts)
+                else:
+                    retry_fail += 1
+
+                # Progress every 20 pages
+                if len(pages_to_retry) > 20 and retry_page % 20 == 0:
+                    logger.info(f"🔄 Retry progress: {retry_ok + retry_fail}/{len(pages_to_retry)} | +{len(retry_apartments)} apts")
+
+            logger.info(f"✅ Retry complete: {retry_ok} OK, {retry_fail} failed, +{len(retry_apartments)} apartments")
+
+            # Add retry apartments to pending (will be deduplicated in batch save)
+            if retry_apartments:
+                pending_apartments.extend(retry_apartments)
 
         # Save remaining apartments
         if pending_apartments:
