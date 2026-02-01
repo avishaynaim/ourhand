@@ -40,11 +40,26 @@ def require_api_key(f):
             return f(*args, **kwargs)
 
         # Allow same-origin dashboard requests without API key
-        referer = request.headers.get('Referer', '')
+        # Behind reverse proxies (Railway), host_url may be http:// while browser uses https://
+        # Check both Referer and Origin headers, normalize protocol
         host = request.host_url.rstrip('/')
-        # Check if request comes from our dashboard (same origin)
-        if referer and (referer.startswith(host) or referer.startswith(host.replace('http://', 'https://'))):
-            # Same-origin request from dashboard - allow without API key
+        host_http = host.replace('https://', 'http://')
+        host_https = host.replace('http://', 'https://')
+        hosts = {host, host_http, host_https}
+        # Also check X-Forwarded-Host if behind proxy
+        fwd_host = request.headers.get('X-Forwarded-Host', '')
+        if fwd_host:
+            hosts.add('http://' + fwd_host)
+            hosts.add('https://' + fwd_host)
+
+        referer = request.headers.get('Referer', '')
+        origin = request.headers.get('Origin', '')
+        if referer and any(referer.startswith(h) for h in hosts):
+            return f(*args, **kwargs)
+        if origin and origin.rstrip('/') in hosts:
+            return f(*args, **kwargs)
+        # Sec-Fetch-Site: same-origin is sent by modern browsers for same-origin fetch
+        if request.headers.get('Sec-Fetch-Site') == 'same-origin':
             return f(*args, **kwargs)
 
         # Get API key from request

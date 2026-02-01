@@ -214,7 +214,8 @@ async function loadAll() {
         ]);
         healthData = await healthRes.json();
         const aptsData = await aptsRes.json();
-        allApts = aptsData.apartments || aptsData || [];
+        allApts = Array.isArray(aptsData.apartments) ? aptsData.apartments :
+                  Array.isArray(aptsData) ? aptsData : [];
         // Pre-compute extracted fields for each apartment
         allApts.forEach(a => {
             const allText = Object.values(a).filter(v => typeof v === 'string').join(' ')
