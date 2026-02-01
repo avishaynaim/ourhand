@@ -658,27 +658,54 @@ class Database:
         if not apartments:
             return 0
 
+        # Deduplicate by ID
+        seen_ids = {}
+        for apt in apartments:
+            seen_ids[apt['id']] = apt
+        unique_apartments = list(seen_ids.values())
+
+        if len(unique_apartments) < len(apartments):
+            logger.info(f"📋 Deduplicated: {len(apartments)} → {len(unique_apartments)} unique apartments")
+
         total = 0
+        now = datetime.now().isoformat()
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
             # Process in batches
-            for i in range(0, len(apartments), batch_size):
-                batch = apartments[i:i + batch_size]
+            for i in range(0, len(unique_apartments), batch_size):
+                batch = unique_apartments[i:i + batch_size]
+                batch_ids = [apt['id'] for apt in batch]
+
+                # Get existing prices for price history tracking
+                placeholders = ','.join(['?' for _ in batch_ids])
+                cursor.execute(f'SELECT id, price FROM apartments WHERE id IN ({placeholders})', batch_ids)
+                existing_prices = {row['id']: row['price'] for row in cursor.fetchall()}
 
                 # Prepare batch data
                 apt_data = []
+                price_history_data = []
                 for apt in batch:
+                    apt_id = apt['id']
+                    new_price = apt.get('price')
+
                     apt_data.append((
-                        apt['id'], apt.get('title'), apt.get('price'), apt.get('price_text'),
+                        apt_id, apt.get('title'), new_price, apt.get('price_text'),
                         apt.get('location'), apt.get('street_address'), apt.get('item_info'),
                         apt.get('link'), apt.get('image_url'), apt.get('rooms'), apt.get('sqm'),
                         apt.get('floor'), apt.get('neighborhood'), apt.get('city'),
-                        apt.get('data_updated_at'), datetime.now().isoformat(),
+                        apt.get('data_updated_at'), now,
                         json.dumps(apt, ensure_ascii=False)
                     ))
 
-                # Batch upsert
+                    # Track price history for new apartments or price changes
+                    if new_price:
+                        old_price = existing_prices.get(apt_id)
+                        if old_price is None or old_price != new_price:
+                            price_history_data.append((apt_id, new_price))
+
+                # Batch upsert apartments
                 cursor.executemany('''
                     INSERT INTO apartments (id, title, price, price_text, location, street_address,
                         item_info, link, image_url, rooms, sqm, floor, neighborhood, city,
@@ -704,8 +731,16 @@ class Database:
                         raw_data = excluded.raw_data
                 ''', apt_data)
 
+                # Batch insert price history
+                if price_history_data:
+                    cursor.executemany(
+                        'INSERT INTO price_history (apartment_id, price) VALUES (?, ?)',
+                        price_history_data
+                    )
+                    logger.info(f"📈 Recorded {len(price_history_data)} price history entries")
+
                 total += len(batch)
-                logger.info(f"💾 Batch saved: {total}/{len(apartments)} apartments")
+                logger.info(f"💾 Batch saved: {total}/{len(unique_apartments)} apartments")
 
             conn.commit()
 

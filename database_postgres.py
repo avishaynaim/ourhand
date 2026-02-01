@@ -356,19 +356,37 @@ class PostgreSQLDatabase:
                 # Process in batches
                 for i in range(0, len(unique_apartments), batch_size):
                     batch = unique_apartments[i:i + batch_size]
+                    batch_ids = [apt['id'] for apt in batch]
+
+                    # Get existing prices for price history tracking
+                    cursor.execute(
+                        'SELECT id, price FROM apartments WHERE id = ANY(%s)',
+                        (batch_ids,)
+                    )
+                    existing_prices = {row[0]: row[1] for row in cursor.fetchall()}
 
                     # Use execute_values for efficient bulk insert
                     from psycopg2.extras import execute_values
 
                     values = []
+                    price_history_values = []
                     for apt in batch:
+                        apt_id = apt['id']
+                        new_price = apt.get('price')
+
                         values.append((
-                            apt['id'], apt.get('title'), apt.get('price'), apt.get('price_text'),
+                            apt_id, apt.get('title'), new_price, apt.get('price_text'),
                             apt.get('location'), apt.get('street_address'), apt.get('item_info'),
                             apt.get('link'), apt.get('image_url'), apt.get('rooms'), apt.get('sqm'),
                             apt.get('floor'), apt.get('neighborhood'), apt.get('city'),
                             apt.get('data_updated_at'), now, 1, json.dumps(apt, ensure_ascii=False)
                         ))
+
+                        # Track price history for new apartments or price changes
+                        if new_price:
+                            old_price = existing_prices.get(apt_id)
+                            if old_price is None or old_price != new_price:
+                                price_history_values.append((apt_id, new_price, now))
 
                     # PostgreSQL upsert with ON CONFLICT
                     execute_values(cursor, '''
@@ -395,6 +413,14 @@ class PostgreSQLDatabase:
                             is_active = 1,
                             raw_data = EXCLUDED.raw_data
                     ''', values)
+
+                    # Batch insert price history
+                    if price_history_values:
+                        execute_values(cursor, '''
+                            INSERT INTO price_history (apartment_id, price, recorded_at)
+                            VALUES %s
+                        ''', price_history_values)
+                        logger.info(f"📈 Recorded {len(price_history_values)} price history entries")
 
                     total += len(batch)
                     logger.info(f"💾 Batch saved: {total}/{len(apartments)} apartments")
