@@ -20,6 +20,7 @@ def require_api_key(f):
     - X-API-Key header
     - api_key query parameter
 
+    Same-origin requests from the dashboard are allowed without API key.
     Returns 401 Unauthorized if API key is missing or invalid.
     """
     @wraps(f)
@@ -36,6 +37,14 @@ def require_api_key(f):
                     'error_en': 'Server misconfiguration - API key required'
                 }), 500
             logger.warning("API_KEY not configured - API endpoints are unprotected (dev mode)")
+            return f(*args, **kwargs)
+
+        # Allow same-origin dashboard requests without API key
+        referer = request.headers.get('Referer', '')
+        host = request.host_url.rstrip('/')
+        # Check if request comes from our dashboard (same origin)
+        if referer and (referer.startswith(host) or referer.startswith(host.replace('http://', 'https://'))):
+            # Same-origin request from dashboard - allow without API key
             return f(*args, **kwargs)
 
         # Get API key from request
