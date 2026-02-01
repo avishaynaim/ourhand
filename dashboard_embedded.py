@@ -986,7 +986,8 @@ function renderTableBody() {
         const isRemoved = apt.is_active === 0;
         const price = apt.price ? '₪' + apt.price.toLocaleString() : '-';
         const location = apt.street_address || apt.location || '';
-        const mapQuery = encodeURIComponent((location || apt.title || '') + ' Israel');
+        const mapCity = apt.city || '';
+        const mapQuery = encodeURIComponent(((location || apt.title || '') + (mapCity ? ', ' + mapCity : '') + ', Israel').trim());
         const floorNum = apt._floor;
         const sqmVal = apt._sqm || apt.sqm || '';
         const firstSeen = apt.first_seen ? new Date(apt.first_seen).toLocaleDateString('he-IL') : '';
@@ -1043,7 +1044,8 @@ function renderCards(apts) {
         const isRemoved = apt.is_active === 0;
         const price = apt.price ? '₪' + apt.price.toLocaleString() : 'לא ידוע';
         const location = esc(apt.street_address || apt.location || '');
-        const mapQuery = encodeURIComponent((apt.street_address || apt.location || apt.title || '') + ' Israel');
+        const mapCity = apt.city || '';
+        const mapQuery = encodeURIComponent(((apt.street_address || apt.location || apt.title || '') + (mapCity ? ', ' + mapCity : '') + ', Israel').trim());
         const info = esc(apt.item_info || '');
         const firstSeen = apt.first_seen ? new Date(apt.first_seen).toLocaleDateString('he-IL') : '';
         const link = esc(apt.link || '');
