@@ -42,6 +42,25 @@ def get_dashboard_html():
             border: 1px solid #d1d5db; border-radius: 4px; background: inherit; color: inherit; }
         .dark .apt-table .col-filter { border-color: #4b5563; }
         .table-wrapper { overflow-x: auto; border-radius: 12px; }
+        /* Multi-select dropdown */
+        .ms-wrap { position: relative; margin-top: 4px; }
+        .ms-btn { width: 100%; padding: 3px 5px; font-size: 11px; border: 1px solid #d1d5db;
+            border-radius: 4px; background: inherit; color: inherit; cursor: pointer;
+            text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dark .ms-btn { border-color: #4b5563; }
+        .ms-drop { display: none; position: absolute; top: 100%; right: 0; z-index: 50;
+            min-width: 160px; max-height: 220px; overflow-y: auto; background: #fff;
+            border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 4px 0; }
+        .dark .ms-drop { background: #1f2937; border-color: #4b5563; }
+        .ms-drop.open { display: block; }
+        .ms-drop label { display: flex; align-items: center; gap: 6px; padding: 4px 8px;
+            font-size: 11px; cursor: pointer; white-space: nowrap; }
+        .ms-drop label:hover { background: #667eea20; }
+        .ms-drop input[type=checkbox] { margin: 0; flex-shrink: 0; }
+        .ms-clear { display: block; padding: 4px 8px; font-size: 10px; color: #667eea;
+            cursor: pointer; border-top: 1px solid #e5e7eb; text-align: center; }
+        .dark .ms-clear { border-top-color: #374151; }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen">
@@ -120,6 +139,16 @@ def get_dashboard_html():
                 class="px-3 py-2 text-sm bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 font-medium">
                 נקה
             </button>
+        </div>
+    </div>
+
+    <!-- Saved Filters -->
+    <div id="saved-filters-bar" class="hidden bg-white dark:bg-gray-800 rounded-xl shadow p-3 mb-4">
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-brand font-semibold text-sm">💾 פילטרים שמורים:</span>
+            <div id="saved-filters-list" class="flex flex-wrap gap-2"></div>
+            <button onclick="saveCurrentFilter()"
+                class="px-3 py-1.5 text-xs bg-brand text-white rounded-lg hover:opacity-80 font-medium">+ שמור נוכחי</button>
         </div>
     </div>
 
@@ -566,9 +595,7 @@ function buildDropdownOptions() {
 }
 
 function tableFilterChanged() {
-    // Read all filter values from the DOM
-    const rf = document.getElementById('tf-rooms');
-    if (rf) tableColFilters.rooms = rf.value;
+    // Read text filter values from the DOM
     ['title','address','date'].forEach(k => {
         const el = document.getElementById('tf-'+k);
         if (el) tableColFilters[k] = el.value;
@@ -579,12 +606,7 @@ function tableFilterChanged() {
         if (mn) tableColFilters[k+'_min'] = mn.value;
         if (mx) tableColFilters[k+'_max'] = mx.value;
     });
-    // Dropdowns
-    ['status','apt_type','city','neighborhood'].forEach(k => {
-        const el = document.getElementById('tf-'+k);
-        if (el) tableColFilters[k] = el.value;
-    });
-    // Cascade: update dropdown options based on currently matching data
+    // Multi-select values are set directly by msChanged()
     updateCascadingDropdowns();
     currentPage = 1;
     renderTableBody();
@@ -593,66 +615,68 @@ function tableFilterChanged() {
 }
 
 function updateCascadingDropdowns() {
-    // Get the base dataset (main filter applied, before table column filters)
     let base = filteredAptsCache;
-    const atv = tableColFilters.apt_type || '';
-    const cv = tableColFilters.city || '';
-    const nv = tableColFilters.neighborhood || '';
+    const atv = getMsValues('tf-apt_type');
+    const cv = getMsValues('tf-city');
+    const nv = getMsValues('tf-neighborhood');
 
-    // For each dropdown, compute available options from data filtered by OTHER dropdowns
     // Type options: filtered by city + neighborhood
     let forType = base;
-    if (cv) forType = forType.filter(a => a.city === cv);
-    if (nv) forType = forType.filter(a => a.neighborhood === nv);
+    if (cv.length) forType = forType.filter(a => cv.includes(a.city));
+    if (nv.length) forType = forType.filter(a => nv.includes(a.neighborhood));
     const typesSet = new Set();
     forType.forEach(a => { if (a.apartment_type) typesSet.add(a.apartment_type); });
 
     // City options: filtered by type + neighborhood
     let forCity = base;
-    if (atv) forCity = forCity.filter(a => a.apartment_type === atv);
-    if (nv) forCity = forCity.filter(a => a.neighborhood === nv);
+    if (atv.length) forCity = forCity.filter(a => atv.includes(a.apartment_type));
+    if (nv.length) forCity = forCity.filter(a => nv.includes(a.neighborhood));
     const citiesSet = new Set();
     forCity.forEach(a => { if (a.city) citiesSet.add(a.city); });
 
     // Neighborhood options: filtered by type + city
     let forHood = base;
-    if (atv) forHood = forHood.filter(a => a.apartment_type === atv);
-    if (cv) forHood = forHood.filter(a => a.city === cv);
+    if (atv.length) forHood = forHood.filter(a => atv.includes(a.apartment_type));
+    if (cv.length) forHood = forHood.filter(a => cv.includes(a.city));
     const hoodsSet = new Set();
     forHood.forEach(a => { if (a.neighborhood) hoodsSet.add(a.neighborhood); });
 
     // Rooms options: filtered by type + city + neighborhood
     let forRooms = base;
-    if (atv) forRooms = forRooms.filter(a => a.apartment_type === atv);
-    if (cv) forRooms = forRooms.filter(a => a.city === cv);
-    if (nv) forRooms = forRooms.filter(a => a.neighborhood === nv);
+    if (atv.length) forRooms = forRooms.filter(a => atv.includes(a.apartment_type));
+    if (cv.length) forRooms = forRooms.filter(a => cv.includes(a.city));
+    if (nv.length) forRooms = forRooms.filter(a => nv.includes(a.neighborhood));
     const roomsSet = new Set();
     forRooms.forEach(a => { if (a.rooms) roomsSet.add(parseFloat(a.rooms)); });
 
-    // Update each dropdown in the DOM
-    updateSelectOptions('tf-apt_type', [...typesSet].sort((a,b) => a.localeCompare(b,'he')), atv, v => v);
-    updateSelectOptions('tf-city', [...citiesSet].sort((a,b) => a.localeCompare(b,'he')), cv, v => v);
-    updateSelectOptions('tf-neighborhood', [...hoodsSet].sort((a,b) => a.localeCompare(b,'he')), nv, v => v);
-    updateSelectOptions('tf-rooms', [...roomsSet].sort((a,b) => a-b), tableColFilters.rooms || '', v => v + " חד'");
+    updateMsOptions('tf-apt_type', [...typesSet].sort((a,b) => a.localeCompare(b,'he')), v => v);
+    updateMsOptions('tf-city', [...citiesSet].sort((a,b) => a.localeCompare(b,'he')), v => v);
+    updateMsOptions('tf-neighborhood', [...hoodsSet].sort((a,b) => a.localeCompare(b,'he')), v => v);
+    updateMsOptions('tf-rooms', [...roomsSet].sort((a,b) => a-b), v => v + " חד'");
 }
 
-function updateSelectOptions(elId, options, currentVal, labelFn) {
-    const el = document.getElementById(elId);
-    if (!el) return;
-    // Remember if current value is still valid
-    const stillValid = !currentVal || options.some(v => String(v) === currentVal);
-    let html = '<option value="">הכל</option>';
+function updateMsOptions(id, options, labelFn) {
+    const drop = document.getElementById(id+'-drop');
+    if (!drop) return;
+    const selected = getMsValues(id);
+    // Remove stale selections
+    const validSet = new Set(options.map(String));
+    const newSelected = selected.filter(v => validSet.has(v));
+    if (newSelected.length !== selected.length) {
+        tableColFilters[id.replace('tf-','')] = newSelected;
+    }
+    // Rebuild checkboxes
+    let html = '';
     options.forEach(v => {
         const sv = String(v);
-        const sel = sv === currentVal ? ' selected' : '';
-        html += '<option value="'+esc(sv)+'"'+sel+'>'+esc(labelFn(v))+'</option>';
+        const chk = newSelected.includes(sv) ? ' checked' : '';
+        html += '<label><input type="checkbox" value="'+esc(sv)+'"'+chk+' onchange="msChanged(\\''+id+'\\')">'+esc(labelFn(v))+'</label>';
     });
-    el.innerHTML = html;
-    // If selected value no longer valid, reset it
-    if (!stillValid) {
-        el.value = '';
-        tableColFilters[elId.replace('tf-','')] = '';
-    }
+    html += '<div class="ms-clear" onclick="msClear(\\''+id+'\\')">נקה הכל</div>';
+    drop.innerHTML = html;
+    // Update button text
+    const btn = document.getElementById(id+'-btn');
+    if (btn) btn.textContent = newSelected.length === 0 ? 'הכל' : newSelected.length <= 2 ? newSelected.join(', ') : newSelected.length + ' נבחרו';
 }
 
 function getTableFiltered() {
@@ -671,27 +695,30 @@ function getTableFiltered() {
             return val.toLowerCase().includes(v);
         });
     });
-    // Rooms dropdown
-    const rv = tableColFilters.rooms || '';
-    if (rv) {
-        const rn = parseFloat(rv);
-        apts = apts.filter(a => parseFloat(a.rooms) === rn);
+    // Multi-select: rooms
+    const rv = getMsValues('tf-rooms');
+    if (rv.length) {
+        const rNums = rv.map(v => parseFloat(v));
+        apts = apts.filter(a => rNums.includes(parseFloat(a.rooms)));
     }
-    // Status dropdown
-    const sv = tableColFilters.status || '';
-    if (sv === 'active') apts = apts.filter(a => a.is_active !== 0);
-    else if (sv === 'removed') apts = apts.filter(a => a.is_active === 0);
-    else if (sv === 'new') {
+    // Multi-select: status
+    const sv = getMsValues('tf-status');
+    if (sv.length) {
         const now = Date.now(); const td = 48*60*60*1000;
-        apts = apts.filter(a => a.is_active !== 0 && (now - new Date(a.first_seen).getTime()) < td);
+        apts = apts.filter(a => {
+            if (sv.includes('active') && a.is_active !== 0) return true;
+            if (sv.includes('removed') && a.is_active === 0) return true;
+            if (sv.includes('new') && a.is_active !== 0 && (now - new Date(a.first_seen).getTime()) < td) return true;
+            return false;
+        });
     }
-    // Dropdown filters: apartment type, city, neighborhood
-    const atv = tableColFilters.apt_type || '';
-    if (atv) apts = apts.filter(a => a.apartment_type === atv);
-    const cv = tableColFilters.city || '';
-    if (cv) apts = apts.filter(a => a.city === cv);
-    const nv = tableColFilters.neighborhood || '';
-    if (nv) apts = apts.filter(a => a.neighborhood === nv);
+    // Multi-select: apartment type, city, neighborhood
+    const atv = getMsValues('tf-apt_type');
+    if (atv.length) apts = apts.filter(a => atv.includes(a.apartment_type));
+    const cv = getMsValues('tf-city');
+    if (cv.length) apts = apts.filter(a => cv.includes(a.city));
+    const nv = getMsValues('tf-neighborhood');
+    if (nv.length) apts = apts.filter(a => nv.includes(a.neighborhood));
     // Range filters: price, sqm, floor
     ['price','sqm','floor'].forEach(k => {
         const mn = parseFloat(tableColFilters[k+'_min']) || -Infinity;
@@ -731,12 +758,61 @@ function getTableFilteredCount() {
     return getTableFiltered().length;
 }
 
-function makeDropdown(id, options, label) {
-    return '<div><select class="col-filter" id="'+id+'" onchange="tableFilterChanged()" onclick="event.stopPropagation()">' +
-        '<option value="">הכל</option>' +
-        options.map(v => '<option value="'+esc(v)+'">'+esc(v)+'</option>').join('') +
-        '</select></div>';
+function makeMultiSelect(id, options, labelFn) {
+    let html = '<div class="ms-wrap" onclick="event.stopPropagation()">';
+    html += '<div class="ms-btn" id="'+id+'-btn" onclick="toggleMs(\\''+id+'\\')">הכל</div>';
+    html += '<div class="ms-drop" id="'+id+'-drop">';
+    options.forEach(v => {
+        const sv = typeof v === 'number' ? String(v) : v;
+        html += '<label><input type="checkbox" value="'+esc(sv)+'" onchange="msChanged(\\''+id+'\\')">'+esc(labelFn ? labelFn(v) : v)+'</label>';
+    });
+    html += '<div class="ms-clear" onclick="msClear(\\''+id+'\\')">נקה הכל</div>';
+    html += '</div></div>';
+    return html;
 }
+
+function toggleMs(id) {
+    const drop = document.getElementById(id+'-drop');
+    // Close all other dropdowns first
+    document.querySelectorAll('.ms-drop.open').forEach(d => {
+        if (d.id !== id+'-drop') d.classList.remove('open');
+    });
+    drop.classList.toggle('open');
+}
+
+function msChanged(id) {
+    const drop = document.getElementById(id+'-drop');
+    const checks = drop.querySelectorAll('input[type=checkbox]:checked');
+    const vals = [...checks].map(c => c.value);
+    const key = id.replace('tf-','');
+    tableColFilters[key] = vals;
+    // Update button text
+    const btn = document.getElementById(id+'-btn');
+    btn.textContent = vals.length === 0 ? 'הכל' : vals.length <= 2 ? vals.join(', ') : vals.length + ' נבחרו';
+    updateCascadingDropdowns();
+    currentPage = 1;
+    renderTableBody();
+    renderPagination(getTableFilteredCount());
+    document.getElementById('view-count').textContent = getTableFilteredCount() + ' דירות';
+}
+
+function msClear(id) {
+    const drop = document.getElementById(id+'-drop');
+    drop.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = false);
+    msChanged(id);
+}
+
+function getMsValues(id) {
+    const v = tableColFilters[id.replace('tf-','')];
+    return Array.isArray(v) ? v : (v ? [v] : []);
+}
+
+// Close dropdowns when clicking elsewhere
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.ms-wrap')) {
+        document.querySelectorAll('.ms-drop.open').forEach(d => d.classList.remove('open'));
+    }
+});
 
 function ensureTableStructure() {
     const container = document.getElementById('apt-container');
@@ -744,12 +820,12 @@ function ensureTableStructure() {
     if (!uniqueRooms.length) buildRoomOptions();
     if (!uniqueTypes.length) buildDropdownOptions();
     const cols = [
-        {key:'status', sortKey:'status', label:'סטטוס', w:'80px', filter:'status'},
-        {key:'apt_type', sortKey:'apartment_type', label:'🏠 סוג', w:'100px', filter:'dropdown', opts: uniqueTypes, tfId:'tf-apt_type'},
-        {key:'city', sortKey:'city', label:'🏙️ עיר', w:'110px', filter:'dropdown', opts: uniqueCities, tfId:'tf-city'},
-        {key:'neighborhood', sortKey:'neighborhood', label:'📍 שכונה', w:'110px', filter:'dropdown', opts: uniqueNeighborhoods, tfId:'tf-neighborhood'},
+        {key:'status', sortKey:'status', label:'סטטוס', w:'80px', filter:'ms_status'},
+        {key:'apt_type', sortKey:'apartment_type', label:'🏠 סוג', w:'100px', filter:'ms', opts: uniqueTypes, tfId:'tf-apt_type'},
+        {key:'city', sortKey:'city', label:'🏙️ עיר', w:'120px', filter:'ms', opts: uniqueCities, tfId:'tf-city'},
+        {key:'neighborhood', sortKey:'neighborhood', label:'📍 שכונה', w:'120px', filter:'ms', opts: uniqueNeighborhoods, tfId:'tf-neighborhood'},
         {key:'address', sortKey:'street_address', label:'כתובת', w:'', filter:'text'},
-        {key:'rooms', sortKey:'rooms', label:'🛏️ חדרים', w:'100px', filter:'rooms'},
+        {key:'rooms', sortKey:'rooms', label:'🛏️ חדרים', w:'100px', filter:'ms', opts: uniqueRooms, tfId:'tf-rooms', labelFn: true},
         {key:'sqm', sortKey:'sqm', label:'📐 מ"ר', w:'100px', filter:'range'},
         {key:'floor', sortKey:'floor', label:'🏢 קומה', w:'100px', filter:'range'},
         {key:'price', sortKey:'price', label:'💰 מחיר', w:'130px', filter:'range'},
@@ -767,22 +843,21 @@ function ensureTableStructure() {
         if (c.filter === 'text') {
             filterHtml = '<div><input class="col-filter" id="tf-'+c.key+'" placeholder="סנן..." ' +
                 'oninput="tableFilterChanged()" onclick="event.stopPropagation()"></div>';
-        } else if (c.filter === 'rooms') {
-            filterHtml = '<div><select class="col-filter" id="tf-rooms" onchange="tableFilterChanged()" onclick="event.stopPropagation()">' +
-                '<option value="">הכל</option>' +
-                uniqueRooms.map(r => '<option value="'+r+'">'+r+' חד\\'</option>').join('') +
-                '</select></div>';
         } else if (c.filter === 'range') {
             filterHtml = '<div style="display:flex;gap:2px;margin-top:4px" onclick="event.stopPropagation()">' +
                 '<input type="number" class="col-filter" id="tf-'+c.key+'-min" placeholder="מ-" style="width:48%" oninput="tableFilterChanged()">' +
                 '<input type="number" class="col-filter" id="tf-'+c.key+'-max" placeholder="עד" style="width:48%" oninput="tableFilterChanged()">' +
                 '</div>';
-        } else if (c.filter === 'status') {
-            filterHtml = '<div><select class="col-filter" id="tf-status" onchange="tableFilterChanged()" onclick="event.stopPropagation()">' +
-                '<option value="">הכל</option><option value="active">פעיל</option><option value="new">חדש</option><option value="removed">הוסר</option>' +
-                '</select></div>';
-        } else if (c.filter === 'dropdown') {
-            filterHtml = makeDropdown(c.tfId, c.opts, 'הכל');
+        } else if (c.filter === 'ms_status') {
+            const statusOpts = [{v:'active',l:'פעיל'},{v:'new',l:'חדש'},{v:'removed',l:'הוסר'}];
+            filterHtml = '<div class="ms-wrap" onclick="event.stopPropagation()">' +
+                '<div class="ms-btn" id="tf-status-btn" onclick="toggleMs(\\'tf-status\\')">הכל</div>' +
+                '<div class="ms-drop" id="tf-status-drop">' +
+                statusOpts.map(o => '<label><input type="checkbox" value="'+o.v+'" onchange="msChanged(\\'tf-status\\')">'+o.l+'</label>').join('') +
+                '<div class="ms-clear" onclick="msClear(\\'tf-status\\')">נקה הכל</div></div></div>';
+        } else if (c.filter === 'ms') {
+            const lf = c.labelFn ? (v => v + " חד\\'") : null;
+            filterHtml = makeMultiSelect(c.tfId, c.opts, lf);
         }
         html += '<th'+sortClick+' style="'+w+'" class="'+sorted+'">' +
             (c.sortKey ? '<span class="sort-icon">'+sortIcon+'</span> ' : '') +
@@ -913,7 +988,99 @@ if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') 
 // Init view mode
 if (viewMode === 'table') setViewMode('table');
 
+// ===== SAVED FILTER PRESETS =====
+function getSavedFilters() {
+    try { return JSON.parse(localStorage.getItem('savedFilters') || '[]'); }
+    catch(e) { return []; }
+}
+
+function renderSavedFilters() {
+    const saved = getSavedFilters();
+    const bar = document.getElementById('saved-filters-bar');
+    const list = document.getElementById('saved-filters-list');
+    if (!saved.length) { bar.classList.add('hidden'); return; }
+    bar.classList.remove('hidden');
+    list.innerHTML = saved.map((f, i) =>
+        '<div class="flex items-center gap-1">' +
+        '<button onclick="loadSavedFilter('+i+')" class="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-brand rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800/40 font-medium">' +
+        esc(f.name) + '</button>' +
+        '<button onclick="deleteSavedFilter('+i+')" class="text-xs text-gray-400 hover:text-red-500 px-1" title="מחק">✕</button>' +
+        '</div>'
+    ).join('');
+}
+
+function saveCurrentFilter() {
+    const name = prompt('שם הפילטר:');
+    if (!name) return;
+    const filters = JSON.parse(JSON.stringify(tableColFilters));
+    // Also save text inputs
+    ['title','address','date'].forEach(k => {
+        const el = document.getElementById('tf-'+k);
+        if (el && el.value) filters['_text_'+k] = el.value;
+    });
+    ['price','sqm','floor'].forEach(k => {
+        const mn = document.getElementById('tf-'+k+'-min');
+        const mx = document.getElementById('tf-'+k+'-max');
+        if (mn && mn.value) filters[k+'_min'] = mn.value;
+        if (mx && mx.value) filters[k+'_max'] = mx.value;
+    });
+    const saved = getSavedFilters();
+    saved.push({ name, filters });
+    localStorage.setItem('savedFilters', JSON.stringify(saved));
+    renderSavedFilters();
+}
+
+function loadSavedFilter(idx) {
+    const saved = getSavedFilters();
+    if (!saved[idx]) return;
+    const f = saved[idx].filters;
+    // Reset everything first
+    tableColFilters = {};
+    // Rebuild table to reset all controls
+    document.getElementById('apt-container').innerHTML = '';
+    // Restore filter state
+    Object.assign(tableColFilters, f);
+    // Render table with new filters
+    renderCurrentView();
+    // Restore text inputs after render
+    ['title','address','date'].forEach(k => {
+        const el = document.getElementById('tf-'+k);
+        if (el && f['_text_'+k]) el.value = f['_text_'+k];
+    });
+    ['price','sqm','floor'].forEach(k => {
+        const mn = document.getElementById('tf-'+k+'-min');
+        const mx = document.getElementById('tf-'+k+'-max');
+        if (mn && f[k+'_min']) mn.value = f[k+'_min'];
+        if (mx && f[k+'_max']) mx.value = f[k+'_max'];
+    });
+    // Restore multi-select checkboxes and buttons
+    ['tf-apt_type','tf-city','tf-neighborhood','tf-rooms','tf-status'].forEach(id => {
+        const key = id.replace('tf-','');
+        const vals = Array.isArray(tableColFilters[key]) ? tableColFilters[key] : [];
+        const drop = document.getElementById(id+'-drop');
+        if (drop) {
+            drop.querySelectorAll('input[type=checkbox]').forEach(cb => {
+                cb.checked = vals.includes(cb.value);
+            });
+        }
+        const btn = document.getElementById(id+'-btn');
+        if (btn) btn.textContent = vals.length === 0 ? 'הכל' : vals.length <= 2 ? vals.join(', ') : vals.length + ' נבחרו';
+    });
+    updateCascadingDropdowns();
+    renderTableBody();
+    renderPagination(getTableFilteredCount());
+    document.getElementById('view-count').textContent = getTableFilteredCount() + ' דירות';
+}
+
+function deleteSavedFilter(idx) {
+    const saved = getSavedFilters();
+    saved.splice(idx, 1);
+    localStorage.setItem('savedFilters', JSON.stringify(saved));
+    renderSavedFilters();
+}
+
 loadAll();
+renderSavedFilters();
 setInterval(loadAll, 300000);
 </script>
 </body>
