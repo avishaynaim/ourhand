@@ -314,6 +314,67 @@ class PostgreSQLDatabase:
 
             return (apartment['id'], is_new)
 
+    def batch_upsert_apartments(self, apartments: List[Dict], batch_size: int = 500) -> int:
+        """Batch insert/update apartments efficiently using PostgreSQL. Returns count processed."""
+        if not apartments:
+            return 0
+
+        total = 0
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Process in batches
+            for i in range(0, len(apartments), batch_size):
+                batch = apartments[i:i + batch_size]
+
+                # Use execute_values for efficient bulk insert
+                from psycopg2.extras import execute_values
+
+                values = []
+                for apt in batch:
+                    values.append((
+                        apt['id'], apt.get('title'), apt.get('price'), apt.get('price_text'),
+                        apt.get('location'), apt.get('street_address'), apt.get('item_info'),
+                        apt.get('link'), apt.get('image_url'), apt.get('rooms'), apt.get('sqm'),
+                        apt.get('floor'), apt.get('neighborhood'), apt.get('city'),
+                        apt.get('data_updated_at'), json.dumps(apt, ensure_ascii=False)
+                    ))
+
+                # PostgreSQL upsert with ON CONFLICT
+                execute_values(cursor, '''
+                    INSERT INTO apartments (id, title, price, price_text, location, street_address,
+                        item_info, link, image_url, rooms, sqm, floor, neighborhood, city,
+                        data_updated_at, last_seen, is_active, raw_data)
+                    VALUES %s
+                    ON CONFLICT (id) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        price = EXCLUDED.price,
+                        price_text = EXCLUDED.price_text,
+                        location = EXCLUDED.location,
+                        street_address = EXCLUDED.street_address,
+                        item_info = EXCLUDED.item_info,
+                        link = EXCLUDED.link,
+                        image_url = EXCLUDED.image_url,
+                        rooms = EXCLUDED.rooms,
+                        sqm = EXCLUDED.sqm,
+                        floor = EXCLUDED.floor,
+                        neighborhood = EXCLUDED.neighborhood,
+                        city = EXCLUDED.city,
+                        data_updated_at = EXCLUDED.data_updated_at,
+                        last_seen = CURRENT_TIMESTAMP,
+                        is_active = 1,
+                        raw_data = EXCLUDED.raw_data
+                ''', [(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10],
+                       v[11], v[12], v[13], v[14], v[15]) for v in values],
+                    template='(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 1, %s)')
+
+                total += len(batch)
+                logger.info(f"💾 Batch saved: {total}/{len(apartments)} apartments")
+
+            conn.commit()
+
+        return total
+
     def get_apartment(self, apartment_id: str) -> Optional[Dict]:
         """Get apartment by ID"""
         with self.get_connection() as conn:

@@ -653,6 +653,64 @@ class Database:
 
             return apt['id'], is_new
 
+    def batch_upsert_apartments(self, apartments: List[Dict], batch_size: int = 500) -> int:
+        """Batch insert/update apartments efficiently. Returns count of processed apartments."""
+        if not apartments:
+            return 0
+
+        total = 0
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Process in batches
+            for i in range(0, len(apartments), batch_size):
+                batch = apartments[i:i + batch_size]
+
+                # Prepare batch data
+                apt_data = []
+                for apt in batch:
+                    apt_data.append((
+                        apt['id'], apt.get('title'), apt.get('price'), apt.get('price_text'),
+                        apt.get('location'), apt.get('street_address'), apt.get('item_info'),
+                        apt.get('link'), apt.get('image_url'), apt.get('rooms'), apt.get('sqm'),
+                        apt.get('floor'), apt.get('neighborhood'), apt.get('city'),
+                        apt.get('data_updated_at'), datetime.now().isoformat(),
+                        json.dumps(apt, ensure_ascii=False)
+                    ))
+
+                # Batch upsert
+                cursor.executemany('''
+                    INSERT INTO apartments (id, title, price, price_text, location, street_address,
+                        item_info, link, image_url, rooms, sqm, floor, neighborhood, city,
+                        data_updated_at, last_seen, is_active, raw_data)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        title = excluded.title,
+                        price = excluded.price,
+                        price_text = excluded.price_text,
+                        location = excluded.location,
+                        street_address = excluded.street_address,
+                        item_info = excluded.item_info,
+                        link = excluded.link,
+                        image_url = excluded.image_url,
+                        rooms = excluded.rooms,
+                        sqm = excluded.sqm,
+                        floor = excluded.floor,
+                        neighborhood = excluded.neighborhood,
+                        city = excluded.city,
+                        data_updated_at = excluded.data_updated_at,
+                        last_seen = excluded.last_seen,
+                        is_active = 1,
+                        raw_data = excluded.raw_data
+                ''', apt_data)
+
+                total += len(batch)
+                logger.info(f"💾 Batch saved: {total}/{len(apartments)} apartments")
+
+            conn.commit()
+
+        return total
+
     def get_apartment(self, apt_id: str) -> Optional[Dict]:
         """Get single apartment by ID"""
         with self.get_connection() as conn:

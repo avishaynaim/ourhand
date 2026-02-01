@@ -534,62 +534,95 @@ class Yad2Monitor:
 
         return None
 
+    def _fetch_page_for_batch(self, args: Tuple[str, int]) -> Tuple[int, List[Dict]]:
+        """Fetch a single page and parse apartments - for concurrent use"""
+        base_url, page = args
+        apartments = []
+        try:
+            # Random delay to avoid pattern detection
+            delay = random.uniform(0.5, 2.0)
+            time.sleep(delay)
+
+            if page > 1:
+                separator = '&' if '?' in base_url else '?'
+                page_url = f"{base_url}{separator}page={page}"
+            else:
+                page_url = base_url
+
+            response = requests.get(page_url, headers=self.get_headers(), timeout=30)
+
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                h2_elements = self.find_apartment_elements(soup)
+
+                for h2_elem in h2_elements:
+                    apt = self.parse_apartment(h2_elem)
+                    if apt and apt['price'] and apt['link']:
+                        apartments.append(apt)
+
+        except Exception as e:
+            logger.debug(f"Error fetching page {page}: {e}")
+
+        return page, apartments
+
     def scrape_full_site(self, base_url: str, max_pages: int = MAX_PAGES_FULL_SITE) -> Tuple[List[Dict], int]:
         """
-        INITIAL SCRAPE: Scrape ALL pages without smart-stop (for first run with 700+ pages).
-        Uses faster delays since we're just collecting data, not monitoring for changes.
+        INITIAL SCRAPE: Scrape ALL pages with CONCURRENT requests.
+        Fetches pages in parallel batches, collects all apartments, saves at end.
         """
-        logger.info(f"🚀 INITIAL FULL SITE SCRAPE - {max_pages} max pages")
+        logger.info(f"🚀 INITIAL FULL SITE SCRAPE - PARALLEL MODE")
         logger.info(f"🔗 URL: {base_url}")
+        logger.info(f"📄 Max pages: {max_pages}")
 
         self.delay_manager.initial_scrape_mode = True
         current_run_ts = int(datetime.now().timestamp() * 1000)
         all_apartments = []
-        page = 1
-        empty_pages = 0
         start_time = datetime.now()
 
+        # Concurrent settings
+        BATCH_SIZE = 5  # Pages per batch
+        MAX_WORKERS = 5  # Concurrent requests
+        consecutive_empty_batches = 0
+
+        page = 1
         while page <= max_pages:
-            # Progress update every 50 pages
-            if page % 50 == 0:
-                elapsed = (datetime.now() - start_time).total_seconds() / 60
-                rate = len(all_apartments) / max(elapsed, 0.1)
-                logger.info(f"{'=' * 60}")
-                logger.info(f"📊 PROGRESS: Page {page}/{max_pages} | {len(all_apartments)} apartments | {elapsed:.1f} min | {rate:.0f} apt/min")
-                logger.info(f"{'=' * 60}")
+            # Create batch of pages to fetch
+            batch_pages = list(range(page, min(page + BATCH_SIZE, max_pages + 1)))
+            batch_args = [(base_url, p) for p in batch_pages]
 
-            html = self.fetch_page(base_url, page, initial_mode=True)
-            if not html:
-                empty_pages += 1
-                if empty_pages >= 3:
-                    logger.info(f"🛑 3 consecutive empty pages - likely reached end at page {page}")
+            # Fetch batch concurrently
+            batch_apartments = []
+            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                results = list(executor.map(self._fetch_page_for_batch, batch_args))
+
+            # Collect results
+            pages_with_data = 0
+            for page_num, apts in results:
+                if apts:
+                    batch_apartments.extend(apts)
+                    pages_with_data += 1
+
+            all_apartments.extend(batch_apartments)
+
+            # Check for end of data
+            if pages_with_data == 0:
+                consecutive_empty_batches += 1
+                if consecutive_empty_batches >= 2:
+                    logger.info(f"🛑 2 consecutive empty batches - reached end at page {page}")
                     break
-                page += 1
-                continue
+            else:
+                consecutive_empty_batches = 0
 
-            empty_pages = 0  # Reset counter
-            soup = BeautifulSoup(html, 'html.parser')
-            h2_elements = self.find_apartment_elements(soup)
+            # Progress update
+            elapsed = (datetime.now() - start_time).total_seconds() / 60
+            rate = len(all_apartments) / max(elapsed, 0.1)
+            logger.info(f"📊 Pages {batch_pages[0]}-{batch_pages[-1]}: +{len(batch_apartments)} apts | Total: {len(all_apartments)} | {elapsed:.1f}min | {rate:.0f}/min")
 
-            if not h2_elements:
-                empty_pages += 1
-                if empty_pages >= 3:
-                    logger.info(f"🛑 3 consecutive pages with no apartments - reached end at page {page}")
-                    break
-                page += 1
-                continue
+            page += BATCH_SIZE
 
-            parsed_count = 0
-            for h2_elem in h2_elements:
-                apt = self.parse_apartment(h2_elem)
-                if apt and apt['price'] and apt['link']:
-                    all_apartments.append(apt)
-                    parsed_count += 1
-
-            if page % 10 == 0 or page <= 5:
-                logger.info(f"📄 Page {page}: {parsed_count} apartments (total: {len(all_apartments)})")
-
-            page += 1
+            # Random delay between batches to avoid detection
+            batch_delay = random.uniform(2, 5)
+            time.sleep(batch_delay)
 
         self.delay_manager.initial_scrape_mode = False
         self.delay_manager.set_last_run_timestamp(current_run_ts)
@@ -597,7 +630,7 @@ class Yad2Monitor:
         elapsed = (datetime.now() - start_time).total_seconds() / 60
         logger.info(f"{'=' * 60}")
         logger.info(f"✅ INITIAL SCRAPE COMPLETE!")
-        logger.info(f"📊 Total: {len(all_apartments)} apartments from {page - 1} pages in {elapsed:.1f} minutes")
+        logger.info(f"📊 Total: {len(all_apartments)} apartments in {elapsed:.1f} minutes")
         logger.info(f"{'=' * 60}")
 
         return all_apartments, 0
@@ -672,6 +705,23 @@ class Yad2Monitor:
             logger.info(f"💾 Pages saved: {pages_saved}")
 
         return all_apartments, pages_saved
+
+    def process_apartments_batch(self, apartments: List[Dict]) -> int:
+        """
+        BATCH SAVE for initial scrape - no change detection, just save all.
+        Much faster for 29K+ apartments.
+        """
+        if not apartments:
+            return 0
+
+        logger.info(f"💾 Batch saving {len(apartments)} apartments...")
+        count = self.db.batch_upsert_apartments(apartments)
+        logger.info(f"✅ Saved {count} apartments to database")
+
+        # Update daily summary
+        self.db.update_daily_summary(new_apts=count, price_drops=0, price_increases=0, removed=0)
+
+        return count
 
     def process_apartments(self, apartments: List[Dict]) -> Tuple[List[Dict], List[Dict], List[str]]:
         """Process apartments and detect changes"""
@@ -776,22 +826,31 @@ class Yad2Monitor:
 
             # Choose scraping method based on initial scrape need
             if self.needs_initial_scrape:
-                logger.info("🚀 Running INITIAL FULL SITE SCRAPE (this will take a while)...")
+                logger.info("🚀 Running INITIAL FULL SITE SCRAPE (parallel mode)...")
                 apartments, pages_saved = self.scrape_full_site(search['url'])
-                # After initial scrape, switch to monitoring mode
+
+                # Use batch save for initial scrape - much faster!
+                if apartments:
+                    count = self.process_apartments_batch(apartments)
+                    logger.info(f"✅ Initial scrape complete - {count} apartments saved")
+
+                # Switch to monitoring mode
                 self.needs_initial_scrape = False
-                logger.info("✅ Initial scrape complete - switching to monitoring mode")
+                logger.info("🔄 Switching to monitoring mode for future runs")
+
+                # Update search URL last scraped
+                self.db.update_search_url_scraped(search['id'])
             else:
                 # Normal monitoring scrape with smart-stop
                 apartments, pages_saved = self.scrape_all_pages(search['url'])
 
-            if apartments:
-                new_apts, price_changes, _ = self.process_apartments(apartments)
-                all_new.extend(new_apts)
-                all_changes.extend(price_changes)
+                if apartments:
+                    new_apts, price_changes, _ = self.process_apartments(apartments)
+                    all_new.extend(new_apts)
+                    all_changes.extend(price_changes)
 
-                # Update search URL last scraped
-                self.db.update_search_url_scraped(search['id'])
+                    # Update search URL last scraped
+                    self.db.update_search_url_scraped(search['id'])
 
         if all_new or all_changes:
             self.send_notifications(all_new, all_changes)
