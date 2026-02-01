@@ -49,11 +49,17 @@ def get_dashboard_html():
             text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .dark .ms-btn { border-color: #4b5563; }
         .ms-drop { display: none; position: absolute; top: 100%; right: 0; z-index: 50;
-            min-width: 160px; max-height: 220px; overflow-y: auto; background: #fff;
+            min-width: 160px; max-height: 260px; background: #fff;
             border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             padding: 4px 0; }
         .dark .ms-drop { background: #1f2937; border-color: #4b5563; }
         .ms-drop.open { display: block; }
+        .ms-search { display: block; width: calc(100% - 12px); margin: 4px 6px; padding: 3px 6px;
+            font-size: 11px; border: 1px solid #d1d5db; border-radius: 4px; background: inherit;
+            color: inherit; outline: none; box-sizing: border-box; }
+        .ms-search:focus { border-color: #667eea; }
+        .dark .ms-search { border-color: #4b5563; }
+        .ms-opts { max-height: 180px; overflow-y: auto; }
         .ms-drop label { display: flex; align-items: center; gap: 6px; padding: 4px 8px;
             font-size: 11px; cursor: pointer; white-space: nowrap; }
         .ms-drop label:hover { background: #667eea20; }
@@ -143,7 +149,7 @@ def get_dashboard_html():
     </div>
 
     <!-- Saved Filters -->
-    <div id="saved-filters-bar" class="hidden bg-white dark:bg-gray-800 rounded-xl shadow p-3 mb-4">
+    <div id="saved-filters-bar" class="bg-white dark:bg-gray-800 rounded-xl shadow p-3 mb-4">
         <div class="flex flex-wrap items-center gap-2">
             <span class="text-brand font-semibold text-sm">💾 פילטרים שמורים:</span>
             <div id="saved-filters-list" class="flex flex-wrap gap-2"></div>
@@ -665,13 +671,20 @@ function updateMsOptions(id, options, labelFn) {
     if (newSelected.length !== selected.length) {
         tableColFilters[id.replace('tf-','')] = newSelected;
     }
-    // Rebuild checkboxes
-    let html = '';
+    // Rebuild checkboxes, preserve search text
+    const searchEl = document.getElementById(id+'-search');
+    const searchVal = searchEl ? searchEl.value : '';
+    let html = '<input type="text" class="ms-search" id="'+id+'-search" placeholder="חפש..." oninput="msFilter(\\''+id+'\\',this.value)" value="'+esc(searchVal)+'">';
+    html += '<div class="ms-opts" id="'+id+'-opts">';
+    const q = searchVal.toLowerCase();
     options.forEach(v => {
         const sv = String(v);
+        const lbl = labelFn(v);
+        const hidden = q && !sv.toLowerCase().includes(q) && !lbl.toLowerCase().includes(q) ? ' style="display:none"' : '';
         const chk = newSelected.includes(sv) ? ' checked' : '';
-        html += '<label><input type="checkbox" value="'+esc(sv)+'"'+chk+' onchange="msChanged(\\''+id+'\\')">'+esc(labelFn(v))+'</label>';
+        html += '<label data-val="'+esc(sv).toLowerCase()+'"'+hidden+'><input type="checkbox" value="'+esc(sv)+'"'+chk+' onchange="msChanged(\\''+id+'\\')">'+esc(lbl)+'</label>';
     });
+    html += '</div>';
     html += '<div class="ms-clear" onclick="msClear(\\''+id+'\\')">נקה הכל</div>';
     drop.innerHTML = html;
     // Update button text
@@ -762,10 +775,13 @@ function makeMultiSelect(id, options, labelFn) {
     let html = '<div class="ms-wrap" onclick="event.stopPropagation()">';
     html += '<div class="ms-btn" id="'+id+'-btn" onclick="toggleMs(\\''+id+'\\')">הכל</div>';
     html += '<div class="ms-drop" id="'+id+'-drop">';
+    html += '<input type="text" class="ms-search" id="'+id+'-search" placeholder="חפש..." oninput="msFilter(\\''+id+'\\',this.value)">';
+    html += '<div class="ms-opts" id="'+id+'-opts">';
     options.forEach(v => {
         const sv = typeof v === 'number' ? String(v) : v;
-        html += '<label><input type="checkbox" value="'+esc(sv)+'" onchange="msChanged(\\''+id+'\\')">'+esc(labelFn ? labelFn(v) : v)+'</label>';
+        html += '<label data-val="'+esc(sv).toLowerCase()+'"><input type="checkbox" value="'+esc(sv)+'" onchange="msChanged(\\''+id+'\\')">'+esc(labelFn ? labelFn(v) : v)+'</label>';
     });
+    html += '</div>';
     html += '<div class="ms-clear" onclick="msClear(\\''+id+'\\')">נקה הכל</div>';
     html += '</div></div>';
     return html;
@@ -778,6 +794,21 @@ function toggleMs(id) {
         if (d.id !== id+'-drop') d.classList.remove('open');
     });
     drop.classList.toggle('open');
+    if (drop.classList.contains('open')) {
+        const s = document.getElementById(id+'-search');
+        if (s) { s.value = ''; msFilter(id, ''); setTimeout(() => s.focus(), 0); }
+    }
+}
+
+function msFilter(id, q) {
+    q = q.toLowerCase();
+    const opts = document.getElementById(id+'-opts');
+    if (!opts) return;
+    opts.querySelectorAll('label').forEach(lbl => {
+        const val = lbl.getAttribute('data-val') || '';
+        const txt = lbl.textContent.toLowerCase();
+        lbl.style.display = (val.includes(q) || txt.includes(q)) ? '' : 'none';
+    });
 }
 
 function msChanged(id) {
@@ -853,8 +884,10 @@ function ensureTableStructure() {
             filterHtml = '<div class="ms-wrap" onclick="event.stopPropagation()">' +
                 '<div class="ms-btn" id="tf-status-btn" onclick="toggleMs(\\'tf-status\\')">הכל</div>' +
                 '<div class="ms-drop" id="tf-status-drop">' +
-                statusOpts.map(o => '<label><input type="checkbox" value="'+o.v+'" onchange="msChanged(\\'tf-status\\')">'+o.l+'</label>').join('') +
-                '<div class="ms-clear" onclick="msClear(\\'tf-status\\')">נקה הכל</div></div></div>';
+                '<input type="text" class="ms-search" id="tf-status-search" placeholder="חפש..." oninput="msFilter(\\'tf-status\\',this.value)">' +
+                '<div class="ms-opts" id="tf-status-opts">' +
+                statusOpts.map(o => '<label data-val="'+o.v+'"><input type="checkbox" value="'+o.v+'" onchange="msChanged(\\'tf-status\\')">'+o.l+'</label>').join('') +
+                '</div><div class="ms-clear" onclick="msClear(\\'tf-status\\')">נקה הכל</div></div></div>';
         } else if (c.filter === 'ms') {
             const lf = c.labelFn ? (v => v + " חד\\'") : null;
             filterHtml = makeMultiSelect(c.tfId, c.opts, lf);
@@ -996,10 +1029,8 @@ function getSavedFilters() {
 
 function renderSavedFilters() {
     const saved = getSavedFilters();
-    const bar = document.getElementById('saved-filters-bar');
     const list = document.getElementById('saved-filters-list');
-    if (!saved.length) { bar.classList.add('hidden'); return; }
-    bar.classList.remove('hidden');
+    if (!saved.length) { list.innerHTML = '<span class="text-xs text-gray-400">אין פילטרים שמורים</span>'; return; }
     list.innerHTML = saved.map((f, i) =>
         '<div class="flex items-center gap-1">' +
         '<button onclick="loadSavedFilter('+i+')" class="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-brand rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800/40 font-medium">' +
