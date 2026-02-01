@@ -489,6 +489,28 @@ function buildingViz(floor, totalFloors) {
     return html;
 }
 
+// Mini building for table rows - compact inline SVG-like visualization
+function miniBuildingViz(floor) {
+    if (floor == null || floor < 0) return '';
+    const total = Math.max(floor + 1, 3);
+    const maxF = Math.min(total, 8);
+    const W = 18, FH = 3;
+    const totalH = maxF * FH + 6;
+    let html = '<span style="display:inline-block;vertical-align:middle;width:'+W+'px;height:'+totalH+'px;position:relative;margin-left:3px" title="' + (floor === 0 ? 'קרקע' : 'קומה '+floor) + '">';
+    // Roof
+    html += '<span style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:'+(W/2)+'px solid transparent;border-right:'+(W/2)+'px solid transparent;border-bottom:4px solid #6b7280"></span>';
+    for (let f = maxF - 1; f >= 0; f--) {
+        const y = 4 + (maxF - 1 - f) * FH;
+        const isTarget = f === floor;
+        const bg = isTarget ? '#667eea' : '#d1d5db';
+        html += '<span style="position:absolute;top:'+y+'px;left:0;width:'+W+'px;height:'+(FH-1)+'px;background:'+bg+';"></span>';
+    }
+    // Ground
+    html += '<span style="position:absolute;bottom:0;left:-1px;width:'+(W+2)+'px;height:1px;background:#6b7280"></span>';
+    html += '</span>';
+    return html;
+}
+
 // ===== TABLE VIEW =====
 let tableHeaderBuilt = false;
 let uniqueRooms = [];
@@ -527,11 +549,27 @@ function updateSortIcons() {
     });
 }
 
+let uniqueTypes = [];
+let uniqueCities = [];
+let uniqueNeighborhoods = [];
+
+function buildDropdownOptions() {
+    const types = new Set(), cities = new Set(), hoods = new Set();
+    allApts.forEach(a => {
+        if (a.apartment_type) types.add(a.apartment_type);
+        if (a.city) cities.add(a.city);
+        if (a.neighborhood) hoods.add(a.neighborhood);
+    });
+    uniqueTypes = [...types].sort((a,b) => a.localeCompare(b, 'he'));
+    uniqueCities = [...cities].sort((a,b) => a.localeCompare(b, 'he'));
+    uniqueNeighborhoods = [...hoods].sort((a,b) => a.localeCompare(b, 'he'));
+}
+
 function tableFilterChanged() {
     // Read all filter values from the DOM
     const rf = document.getElementById('tf-rooms');
     if (rf) tableColFilters.rooms = rf.value;
-    ['title','address','info','date'].forEach(k => {
+    ['title','address','date'].forEach(k => {
         const el = document.getElementById('tf-'+k);
         if (el) tableColFilters[k] = el.value;
     });
@@ -541,8 +579,11 @@ function tableFilterChanged() {
         if (mn) tableColFilters[k+'_min'] = mn.value;
         if (mx) tableColFilters[k+'_max'] = mx.value;
     });
-    const sf = document.getElementById('tf-status');
-    if (sf) tableColFilters.status = sf.value;
+    // Dropdowns
+    ['status','apt_type','city','neighborhood'].forEach(k => {
+        const el = document.getElementById('tf-'+k);
+        if (el) tableColFilters[k] = el.value;
+    });
     currentPage = 1;
     renderTableBody();
     renderPagination(getTableFilteredCount());
@@ -552,7 +593,7 @@ function tableFilterChanged() {
 function getTableFiltered() {
     let apts = filteredAptsCache;
     // Text filters
-    ['title','address','info','date'].forEach(k => {
+    ['title','address','date'].forEach(k => {
         const v = (tableColFilters[k] || '').trim().toLowerCase();
         if (!v) return;
         apts = apts.filter(a => {
@@ -560,7 +601,6 @@ function getTableFiltered() {
             switch(k) {
                 case 'title': val = a.title || ''; break;
                 case 'address': val = (a.street_address || a.location || ''); break;
-                case 'info': val = a.item_info || ''; break;
                 case 'date': val = a.first_seen ? new Date(a.first_seen).toLocaleDateString('he-IL') : ''; break;
             }
             return val.toLowerCase().includes(v);
@@ -580,6 +620,13 @@ function getTableFiltered() {
         const now = Date.now(); const td = 48*60*60*1000;
         apts = apts.filter(a => a.is_active !== 0 && (now - new Date(a.first_seen).getTime()) < td);
     }
+    // Dropdown filters: apartment type, city, neighborhood
+    const atv = tableColFilters.apt_type || '';
+    if (atv) apts = apts.filter(a => a.apartment_type === atv);
+    const cv = tableColFilters.city || '';
+    if (cv) apts = apts.filter(a => a.city === cv);
+    const nv = tableColFilters.neighborhood || '';
+    if (nv) apts = apts.filter(a => a.neighborhood === nv);
     // Range filters: price, sqm, floor
     ['price','sqm','floor'].forEach(k => {
         const mn = parseFloat(tableColFilters[k+'_min']) || -Infinity;
@@ -619,21 +666,30 @@ function getTableFilteredCount() {
     return getTableFiltered().length;
 }
 
+function makeDropdown(id, options, label) {
+    return '<div><select class="col-filter" id="'+id+'" onchange="tableFilterChanged()" onclick="event.stopPropagation()">' +
+        '<option value="">הכל</option>' +
+        options.map(v => '<option value="'+esc(v)+'">'+esc(v)+'</option>').join('') +
+        '</select></div>';
+}
+
 function ensureTableStructure() {
     const container = document.getElementById('apt-container');
     if (container.querySelector('.apt-table')) return; // already built
     if (!uniqueRooms.length) buildRoomOptions();
+    if (!uniqueTypes.length) buildDropdownOptions();
     const cols = [
         {key:'status', sortKey:'status', label:'סטטוס', w:'80px', filter:'status'},
-        {key:'title', sortKey:'title', label:'כותרת', w:'', filter:'text'},
+        {key:'apt_type', sortKey:'apartment_type', label:'🏠 סוג', w:'100px', filter:'dropdown', opts: uniqueTypes, tfId:'tf-apt_type'},
+        {key:'city', sortKey:'city', label:'🏙️ עיר', w:'110px', filter:'dropdown', opts: uniqueCities, tfId:'tf-city'},
+        {key:'neighborhood', sortKey:'neighborhood', label:'📍 שכונה', w:'110px', filter:'dropdown', opts: uniqueNeighborhoods, tfId:'tf-neighborhood'},
         {key:'address', sortKey:'street_address', label:'כתובת', w:'', filter:'text'},
         {key:'rooms', sortKey:'rooms', label:'🛏️ חדרים', w:'100px', filter:'rooms'},
-        {key:'sqm', sortKey:'sqm', label:'📐 מ"ר', w:'110px', filter:'range'},
-        {key:'floor', sortKey:'floor', label:'🏢 קומה', w:'110px', filter:'range'},
-        {key:'price', sortKey:'price', label:'💰 מחיר', w:'140px', filter:'range'},
-        {key:'info', sortKey:'info', label:'ℹ️ פרטים', w:'', filter:'text'},
-        {key:'date', sortKey:'first_seen', label:'📅 תאריך', w:'100px', filter:'text'},
-        {key:'link', sortKey:'', label:'קישור', w:'60px', filter:'none'}
+        {key:'sqm', sortKey:'sqm', label:'📐 מ"ר', w:'100px', filter:'range'},
+        {key:'floor', sortKey:'floor', label:'🏢 קומה', w:'100px', filter:'range'},
+        {key:'price', sortKey:'price', label:'💰 מחיר', w:'130px', filter:'range'},
+        {key:'date', sortKey:'first_seen', label:'📅 תאריך', w:'90px', filter:'text'},
+        {key:'link', sortKey:'', label:'קישור', w:'55px', filter:'none'}
     ];
     let html = '<div class="table-wrapper bg-white dark:bg-gray-800 rounded-xl shadow"><table class="apt-table">';
     html += '<thead class="bg-gray-50 dark:bg-gray-700"><tr>';
@@ -660,6 +716,8 @@ function ensureTableStructure() {
             filterHtml = '<div><select class="col-filter" id="tf-status" onchange="tableFilterChanged()" onclick="event.stopPropagation()">' +
                 '<option value="">הכל</option><option value="active">פעיל</option><option value="new">חדש</option><option value="removed">הוסר</option>' +
                 '</select></div>';
+        } else if (c.filter === 'dropdown') {
+            filterHtml = makeDropdown(c.tfId, c.opts, 'הכל');
         }
         html += '<th'+sortClick+' style="'+w+'" class="'+sorted+'">' +
             (c.sortKey ? '<span class="sort-icon">'+sortIcon+'</span> ' : '') +
@@ -679,7 +737,7 @@ function renderTableBody() {
     if (!tbody) return;
 
     if (!apts.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8 text-gray-400">🤷 אין דירות להצגה</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center py-8 text-gray-400">🤷 אין דירות להצגה</td></tr>';
         return;
     }
     const now = Date.now();
@@ -706,15 +764,20 @@ function renderTableBody() {
             return '<span style="background:'+rc.bg+';color:'+rc.text+';padding:1px 6px;border-radius:4px;font-weight:bold;font-size:12px">'+apt.rooms+'</span>';
         })() : '-';
 
+        // Mini building viz for floor column
+        const floorLabel = floorNum != null ? (floorNum === 0 ? 'קרקע' : floorNum) : '-';
+        const miniBldg = floorNum != null ? miniBuildingViz(floorNum) : '';
+
         html += '<tr>' +
             '<td>'+statusBadge+'</td>' +
-            '<td class="font-medium text-sm">'+esc(apt.title || '')+'</td>' +
+            '<td class="text-xs">'+esc(apt.apartment_type || '-')+'</td>' +
+            '<td class="text-xs">'+esc(apt.city || '-')+'</td>' +
+            '<td class="text-xs" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(apt.neighborhood||'')+'">'+esc(apt.neighborhood || '-')+'</td>' +
             '<td class="text-sm">' + (location ? esc(location) + ' <a href="https://www.google.com/maps/search/'+mapQuery+'" target="_blank" class="text-green-600 hover:text-green-800 text-xs">🗺️</a>' : '-') + '</td>' +
             '<td class="text-center">'+roomsBadge+'</td>' +
             '<td class="text-center">'+(sqmVal || '-')+'</td>' +
-            '<td class="text-center">'+(floorNum != null ? floorNum : '-')+'</td>' +
+            '<td class="text-center" style="white-space:nowrap">'+miniBldg+' <span class="text-xs font-medium">'+floorLabel+'</span></td>' +
             '<td class="font-bold text-brand text-sm whitespace-nowrap">'+price+'</td>' +
-            '<td class="text-xs text-gray-500 dark:text-gray-400" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(apt.item_info||'')+'">'+esc(apt.item_info || '-')+'</td>' +
             '<td class="text-xs whitespace-nowrap">'+firstSeen+'</td>' +
             '<td>'+(link ? '<a href="'+esc(link)+'" target="_blank" class="text-brand hover:underline text-xs font-medium">יד2</a>' : '-')+'</td>' +
             '</tr>';

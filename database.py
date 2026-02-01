@@ -96,6 +96,7 @@ class Database:
                     location TEXT,
                     street_address TEXT,
                     item_info TEXT,
+                    apartment_type TEXT,
                     link TEXT,
                     image_url TEXT,
                     rooms REAL,
@@ -110,6 +111,12 @@ class Database:
                     raw_data TEXT
                 )
             ''')
+
+            # Add apartment_type column if missing (migration for existing DBs)
+            try:
+                cursor.execute("ALTER TABLE apartments ADD COLUMN apartment_type TEXT")
+            except Exception:
+                pass  # column already exists
 
             # Price history table
             cursor.execute('''
@@ -613,9 +620,9 @@ class Database:
 
             cursor.execute('''
                 INSERT INTO apartments (id, title, price, price_text, location, street_address,
-                    item_info, link, image_url, rooms, sqm, floor, neighborhood, city,
+                    item_info, apartment_type, link, image_url, rooms, sqm, floor, neighborhood, city,
                     data_updated_at, last_seen, is_active, raw_data)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     title = excluded.title,
                     price = excluded.price,
@@ -623,6 +630,7 @@ class Database:
                     location = excluded.location,
                     street_address = excluded.street_address,
                     item_info = excluded.item_info,
+                    apartment_type = excluded.apartment_type,
                     link = excluded.link,
                     image_url = excluded.image_url,
                     rooms = excluded.rooms,
@@ -637,6 +645,7 @@ class Database:
             ''', (
                 apt['id'], apt.get('title'), apt.get('price'), apt.get('price_text'),
                 apt.get('location'), apt.get('street_address'), apt.get('item_info'),
+                apt.get('apartment_type'),
                 apt.get('link'), apt.get('image_url'), apt.get('rooms'), apt.get('sqm'),
                 apt.get('floor'), apt.get('neighborhood'), apt.get('city'),
                 apt.get('data_updated_at'), datetime.now().isoformat(),
@@ -693,6 +702,7 @@ class Database:
                     apt_data.append((
                         apt_id, apt.get('title'), new_price, apt.get('price_text'),
                         apt.get('location'), apt.get('street_address'), apt.get('item_info'),
+                        apt.get('apartment_type'),
                         apt.get('link'), apt.get('image_url'), apt.get('rooms'), apt.get('sqm'),
                         apt.get('floor'), apt.get('neighborhood'), apt.get('city'),
                         apt.get('data_updated_at'), now,
@@ -708,9 +718,9 @@ class Database:
                 # Batch upsert apartments
                 cursor.executemany('''
                     INSERT INTO apartments (id, title, price, price_text, location, street_address,
-                        item_info, link, image_url, rooms, sqm, floor, neighborhood, city,
+                        item_info, apartment_type, link, image_url, rooms, sqm, floor, neighborhood, city,
                         data_updated_at, last_seen, is_active, raw_data)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         title = excluded.title,
                         price = excluded.price,
@@ -718,6 +728,7 @@ class Database:
                         location = excluded.location,
                         street_address = excluded.street_address,
                         item_info = excluded.item_info,
+                        apartment_type = excluded.apartment_type,
                         link = excluded.link,
                         image_url = excluded.image_url,
                         rooms = excluded.rooms,

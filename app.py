@@ -399,14 +399,31 @@ class Yad2Monitor:
             if street_elem:
                 street_address = street_elem.get_text(strip=True)
 
-            # Extract item info (rooms, sqm, floor)
+            # Extract item info (apartment_type, neighborhood, city)
             item_info = None
+            apartment_type = None
+            neighborhood = None
+            city = None
             rooms = None
             sqm = None
             floor = None
             info_elem = container.find('span', class_='item-data-content_itemInfoLine__AeoPP')
             if info_elem:
                 item_info = info_elem.get_text(strip=True)
+
+            # Parse apartment_type, neighborhood, city from item_info
+            # Format: "type, [neighborhood,] city" - comma separated, neighborhood is optional
+            if item_info:
+                info_parts = [p.strip() for p in item_info.split(',') if p.strip()]
+                if len(info_parts) >= 3:
+                    apartment_type = info_parts[0]
+                    neighborhood = info_parts[1]
+                    city = info_parts[2]
+                elif len(info_parts) == 2:
+                    apartment_type = info_parts[0]
+                    city = info_parts[1]
+                elif len(info_parts) == 1:
+                    apartment_type = info_parts[0]
 
             # Parse rooms/sqm/floor from item_info and title
             # Example HTML: "4 חדרים • קומה ‎7‏ • 215 מ״ר"
@@ -456,6 +473,9 @@ class Yad2Monitor:
                 'location': street_address,
                 'street_address': street_address,
                 'item_info': item_info,
+                'apartment_type': apartment_type,
+                'neighborhood': neighborhood,
+                'city': city,
                 'rooms': rooms,
                 'sqm': sqm,
                 'floor': floor,

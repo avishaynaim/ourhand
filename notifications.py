@@ -86,9 +86,13 @@ class NotificationManager:
         floor = apt.get('floor')
         floor_str = f"\n🏢 <b>קומה:</b> {floor}" if floor else ""
 
-        # Item info (usually contains rooms, sqm, floor)
-        item_info = apt.get('item_info', '')
-        info_line = f"\n📋 {item_info}" if item_info else ""
+        # Apartment type, city, neighborhood
+        apt_type = apt.get('apartment_type', '')
+        city = apt.get('city', '')
+        neighborhood = apt.get('neighborhood', '')
+        type_line = f"\n🏠 <b>סוג:</b> {apt_type}" if apt_type else ""
+        city_line = f"\n🏙️ <b>עיר:</b> {city}" if city else ""
+        hood_line = f"\n📍 <b>שכונה:</b> {neighborhood}" if neighborhood else ""
 
         timestamp = datetime.now().strftime('%d/%m/%Y %H:%M')
 
@@ -96,9 +100,9 @@ class NotificationManager:
             f"🆕 <b>דירה חדשה!</b>\n"
             f"{'─' * 30}\n\n"
             f"<b>📍 {apt.get('title', 'ללא כותרת')}</b>\n\n"
-            f"🏠 <b>כתובת:</b> {apt.get('street_address') or apt.get('location') or 'לא צוין'}\n"
-            f"{info_line}"
-            f"\n💰 <b>מחיר:</b> {price_str}"
+            f"🏠 <b>כתובת:</b> {apt.get('street_address') or apt.get('location') or 'לא צוין'}"
+            f"{type_line}{city_line}{hood_line}\n"
+            f"💰 <b>מחיר:</b> {price_str}"
             f"{price_per_sqm}"
             f"{floor_str}\n"
             f"📅 <b>תאריך:</b> {timestamp}\n\n"

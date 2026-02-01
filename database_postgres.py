@@ -68,6 +68,7 @@ class PostgreSQLDatabase:
                     location TEXT,
                     street_address TEXT,
                     item_info TEXT,
+                    apartment_type TEXT,
                     link TEXT,
                     image_url TEXT,
                     rooms REAL,
@@ -82,6 +83,15 @@ class PostgreSQLDatabase:
                     raw_data TEXT
                 )
             ''')
+
+            # Add apartment_type column if missing (migration for existing DBs)
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'apartments' AND column_name = 'apartment_type'
+            """)
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE apartments ADD COLUMN apartment_type TEXT")
+                logger.info("✅ Added apartment_type column to apartments table")
 
             # Price history table
             cursor.execute('''
@@ -310,13 +320,14 @@ class PostgreSQLDatabase:
                 # Insert new
                 cursor.execute('''
                     INSERT INTO apartments (id, title, price, price_text, location, street_address,
-                        item_info, link, image_url, rooms, sqm, floor, neighborhood, city,
+                        item_info, apartment_type, link, image_url, rooms, sqm, floor, neighborhood, city,
                         data_updated_at, last_seen, is_active, raw_data)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 1, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 1, %s)
                 ''', (
                     apartment['id'], apartment.get('title'), apartment.get('price'),
                     apartment.get('price_text'), apartment.get('location'), apartment.get('street_address'),
-                    apartment.get('item_info'), apartment.get('link'), apartment.get('image_url'),
+                    apartment.get('item_info'), apartment.get('apartment_type'),
+                    apartment.get('link'), apartment.get('image_url'),
                     apartment.get('rooms'), apartment.get('sqm'), apartment.get('floor'),
                     apartment.get('neighborhood'), apartment.get('city'), apartment.get('data_updated_at'),
                     json.dumps(apartment, ensure_ascii=False)
@@ -377,6 +388,7 @@ class PostgreSQLDatabase:
                         values.append((
                             apt_id, apt.get('title'), new_price, apt.get('price_text'),
                             apt.get('location'), apt.get('street_address'), apt.get('item_info'),
+                            apt.get('apartment_type'),
                             apt.get('link'), apt.get('image_url'), apt.get('rooms'), apt.get('sqm'),
                             apt.get('floor'), apt.get('neighborhood'), apt.get('city'),
                             apt.get('data_updated_at'), now, 1, json.dumps(apt, ensure_ascii=False)
@@ -391,7 +403,7 @@ class PostgreSQLDatabase:
                     # PostgreSQL upsert with ON CONFLICT
                     execute_values(cursor, '''
                         INSERT INTO apartments (id, title, price, price_text, location, street_address,
-                            item_info, link, image_url, rooms, sqm, floor, neighborhood, city,
+                            item_info, apartment_type, link, image_url, rooms, sqm, floor, neighborhood, city,
                             data_updated_at, last_seen, is_active, raw_data)
                         VALUES %s
                         ON CONFLICT (id) DO UPDATE SET
@@ -401,6 +413,7 @@ class PostgreSQLDatabase:
                             location = EXCLUDED.location,
                             street_address = EXCLUDED.street_address,
                             item_info = EXCLUDED.item_info,
+                            apartment_type = EXCLUDED.apartment_type,
                             link = EXCLUDED.link,
                             image_url = EXCLUDED.image_url,
                             rooms = EXCLUDED.rooms,
