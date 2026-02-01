@@ -412,13 +412,17 @@ class Yad2Monitor:
                 item_info = info_elem.get_text(strip=True)
 
             # Parse apartment_type, neighborhood, city from item_info
-            # Format: "type, [neighborhood,] city" - comma separated, neighborhood is optional
+            # Format: "type, [neighborhood parts...], city"
+            # First element = apartment type, last element = city
+            # Everything in between = neighborhood (may contain commas)
+            # e.g. "דירה, צפון מערב מרכז העיר, נתניה"
+            # e.g. "דירה, נתניה" (no neighborhood)
             if item_info:
                 info_parts = [p.strip() for p in item_info.split(',') if p.strip()]
                 if len(info_parts) >= 3:
                     apartment_type = info_parts[0]
-                    neighborhood = info_parts[1]
-                    city = info_parts[2]
+                    city = info_parts[-1]
+                    neighborhood = ', '.join(info_parts[1:-1])
                 elif len(info_parts) == 2:
                     apartment_type = info_parts[0]
                     city = info_parts[1]
