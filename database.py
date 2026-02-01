@@ -118,24 +118,33 @@ class Database:
             except Exception:
                 pass  # column already exists
 
-            # Backfill apartment_type, neighborhood, city from item_info
+            # Backfill apartment_type, neighborhood, city from item_info or raw_data
             cursor.execute("""
                 SELECT COUNT(*) FROM apartments
-                WHERE item_info IS NOT NULL AND item_info != ''
-                AND apartment_type IS NULL AND city IS NULL
+                WHERE apartment_type IS NULL AND city IS NULL
             """)
             backfill_count = cursor.fetchone()[0]
             if backfill_count > 0:
-                logger.info(f"🔄 Backfilling {backfill_count} apartments from item_info...")
+                logger.info(f"🔄 Backfilling {backfill_count} apartments...")
                 cursor.execute("""
-                    SELECT id, item_info FROM apartments
-                    WHERE item_info IS NOT NULL AND item_info != ''
-                    AND apartment_type IS NULL AND city IS NULL
+                    SELECT id, item_info, raw_data FROM apartments
+                    WHERE apartment_type IS NULL AND city IS NULL
                 """)
                 rows = cursor.fetchall()
+                updated = 0
                 for row in rows:
-                    apt_id, item_info = row['id'], row['item_info']
-                    parts = [p.strip() for p in item_info.split(',') if p.strip()]
+                    apt_id, item_info, raw_data = row['id'], row['item_info'], row['raw_data']
+                    info_text = item_info
+                    if not info_text and raw_data:
+                        try:
+                            import json
+                            data = json.loads(raw_data)
+                            info_text = data.get('item_info')
+                        except Exception:
+                            pass
+                    if not info_text:
+                        continue
+                    parts = [p.strip() for p in info_text.split(',') if p.strip()]
                     apt_type = city = neighborhood = None
                     if len(parts) >= 3:
                         apt_type = parts[0]
@@ -146,11 +155,15 @@ class Database:
                         city = parts[1]
                     elif len(parts) == 1:
                         apt_type = parts[0]
-                    cursor.execute("""
-                        UPDATE apartments SET apartment_type = ?, neighborhood = ?, city = ?
-                        WHERE id = ?
-                    """, (apt_type, neighborhood, city, apt_id))
-                logger.info(f"✅ Backfilled {len(rows)} apartments with type/neighborhood/city")
+                    if apt_type or city:
+                        cursor.execute("""
+                            UPDATE apartments
+                            SET apartment_type = ?, neighborhood = ?, city = ?,
+                                item_info = COALESCE(item_info, ?)
+                            WHERE id = ?
+                        """, (apt_type, neighborhood, city, info_text, apt_id))
+                        updated += 1
+                logger.info(f"✅ Backfilled {updated}/{len(rows)} apartments with type/neighborhood/city")
 
             # Price history table
             cursor.execute('''

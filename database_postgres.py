@@ -93,24 +93,42 @@ class PostgreSQLDatabase:
                 cursor.execute("ALTER TABLE apartments ADD COLUMN apartment_type TEXT")
                 logger.info("✅ Added apartment_type column to apartments table")
 
-            # Backfill apartment_type, neighborhood, city from item_info
+            # Backfill apartment_type, neighborhood, city from item_info or raw_data
             cursor.execute("""
                 SELECT COUNT(*) FROM apartments
-                WHERE item_info IS NOT NULL AND item_info != ''
-                AND (apartment_type IS NULL AND city IS NULL)
+                WHERE apartment_type IS NULL AND city IS NULL
             """)
             backfill_count = cursor.fetchone()[0]
             if backfill_count > 0:
-                logger.info(f"🔄 Backfilling {backfill_count} apartments from item_info...")
+                # Debug: check what item_info looks like
+                cursor.execute("SELECT item_info FROM apartments WHERE item_info IS NOT NULL LIMIT 5")
+                sample = cursor.fetchall()
+                logger.info(f"🔍 Sample item_info values: {[r[0] for r in sample]}")
+                cursor.execute("SELECT COUNT(*) FROM apartments WHERE item_info IS NOT NULL AND item_info != ''")
+                has_info = cursor.fetchone()[0]
+                logger.info(f"🔍 Apartments with item_info: {has_info}, without type/city: {backfill_count}")
+
+                logger.info(f"🔄 Backfilling {backfill_count} apartments...")
                 cursor.execute("""
-                    SELECT id, item_info FROM apartments
-                    WHERE item_info IS NOT NULL AND item_info != ''
-                    AND (apartment_type IS NULL AND city IS NULL)
+                    SELECT id, item_info, raw_data FROM apartments
+                    WHERE apartment_type IS NULL AND city IS NULL
                 """)
                 rows = cursor.fetchall()
+                updated = 0
                 for row in rows:
-                    apt_id, item_info = row[0], row[1]
-                    parts = [p.strip() for p in item_info.split(',') if p.strip()]
+                    apt_id, item_info, raw_data = row[0], row[1], row[2]
+                    # Try item_info first, then raw_data JSON
+                    info_text = item_info
+                    if not info_text and raw_data:
+                        try:
+                            import json
+                            data = json.loads(raw_data)
+                            info_text = data.get('item_info')
+                        except Exception:
+                            pass
+                    if not info_text:
+                        continue
+                    parts = [p.strip() for p in info_text.split(',') if p.strip()]
                     apt_type = city = neighborhood = None
                     if len(parts) >= 3:
                         apt_type = parts[0]
@@ -121,11 +139,15 @@ class PostgreSQLDatabase:
                         city = parts[1]
                     elif len(parts) == 1:
                         apt_type = parts[0]
-                    cursor.execute("""
-                        UPDATE apartments SET apartment_type = %s, neighborhood = %s, city = %s
-                        WHERE id = %s
-                    """, (apt_type, neighborhood, city, apt_id))
-                logger.info(f"✅ Backfilled {len(rows)} apartments with type/neighborhood/city")
+                    if apt_type or city:
+                        cursor.execute("""
+                            UPDATE apartments
+                            SET apartment_type = %s, neighborhood = %s, city = %s,
+                                item_info = COALESCE(item_info, %s)
+                            WHERE id = %s
+                        """, (apt_type, neighborhood, city, info_text, apt_id))
+                        updated += 1
+                logger.info(f"✅ Backfilled {updated}/{len(rows)} apartments with type/neighborhood/city")
 
             # Price history table
             cursor.execute('''
