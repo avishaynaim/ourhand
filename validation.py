@@ -165,8 +165,8 @@ def validate_pagination(offset: Optional[int], limit: Optional[int]) -> Tuple[in
     if not isinstance(limit, int) or limit < 1:
         raise ValidationError("limit חייב להיות מספר חיובי / Limit must be a positive number")
 
-    if limit > 1000:
-        raise ValidationError("limit מקסימלי הוא 1000 / Maximum limit is 1000")
+    if limit > 100000:
+        raise ValidationError("limit מקסימלי הוא 100000 / Maximum limit is 100000")
 
     return offset, limit
 
