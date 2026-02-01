@@ -715,13 +715,29 @@ class Yad2Monitor:
             return 0
 
         logger.info(f"💾 Batch saving {len(apartments)} apartments...")
-        count = self.db.batch_upsert_apartments(apartments)
-        logger.info(f"✅ Saved {count} apartments to database")
+        try:
+            count = self.db.batch_upsert_apartments(apartments)
+            logger.info(f"✅ Saved {count} apartments to database")
 
-        # Update daily summary
-        self.db.update_daily_summary(new_apts=count, price_drops=0, price_increases=0, removed=0)
+            # Update daily summary
+            self.db.update_daily_summary(new_apts=count, price_drops=0, price_increases=0, removed=0)
 
-        return count
+            return count
+        except Exception as e:
+            logger.error(f"❌ BATCH SAVE FAILED: {e}", exc_info=True)
+            # Try individual saves as fallback
+            logger.info("⚠️ Attempting individual saves as fallback...")
+            saved = 0
+            for apt in apartments:
+                try:
+                    self.db.upsert_apartment(apt)
+                    saved += 1
+                    if saved % 100 == 0:
+                        logger.info(f"💾 Individual save progress: {saved}/{len(apartments)}")
+                except Exception as e2:
+                    logger.error(f"Failed to save apartment {apt.get('id')}: {e2}")
+            logger.info(f"✅ Individual saves complete: {saved}/{len(apartments)}")
+            return saved
 
     def process_apartments(self, apartments: List[Dict]) -> Tuple[List[Dict], List[Dict], List[str]]:
         """Process apartments and detect changes"""

@@ -20,7 +20,25 @@ class PostgreSQLDatabase:
     def __init__(self, database_url: str):
         self.database_url = database_url
         logger.info(f"🐘 Initializing PostgreSQL database")
-        self.init_database()
+        try:
+            self.init_database()
+            self._verify_tables()
+        except Exception as e:
+            logger.error(f"❌ PostgreSQL initialization FAILED: {e}", exc_info=True)
+            raise
+
+    def _verify_tables(self):
+        """Verify that tables were created successfully"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT table_name FROM information_schema.tables
+                WHERE table_schema = 'public'
+            """)
+            tables = [row[0] for row in cursor.fetchall()]
+            logger.info(f"✅ PostgreSQL tables verified: {tables}")
+            if 'apartments' not in tables:
+                raise Exception("apartments table was not created!")
 
     @contextmanager
     def get_connection(self):
@@ -320,58 +338,64 @@ class PostgreSQLDatabase:
             return 0
 
         total = 0
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
+        now = datetime.now()
 
-            # Process in batches
-            for i in range(0, len(apartments), batch_size):
-                batch = apartments[i:i + batch_size]
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
 
-                # Use execute_values for efficient bulk insert
-                from psycopg2.extras import execute_values
+                # Process in batches
+                for i in range(0, len(apartments), batch_size):
+                    batch = apartments[i:i + batch_size]
 
-                values = []
-                for apt in batch:
-                    values.append((
-                        apt['id'], apt.get('title'), apt.get('price'), apt.get('price_text'),
-                        apt.get('location'), apt.get('street_address'), apt.get('item_info'),
-                        apt.get('link'), apt.get('image_url'), apt.get('rooms'), apt.get('sqm'),
-                        apt.get('floor'), apt.get('neighborhood'), apt.get('city'),
-                        apt.get('data_updated_at'), json.dumps(apt, ensure_ascii=False)
-                    ))
+                    # Use execute_values for efficient bulk insert
+                    from psycopg2.extras import execute_values
 
-                # PostgreSQL upsert with ON CONFLICT
-                execute_values(cursor, '''
-                    INSERT INTO apartments (id, title, price, price_text, location, street_address,
-                        item_info, link, image_url, rooms, sqm, floor, neighborhood, city,
-                        data_updated_at, last_seen, is_active, raw_data)
-                    VALUES %s
-                    ON CONFLICT (id) DO UPDATE SET
-                        title = EXCLUDED.title,
-                        price = EXCLUDED.price,
-                        price_text = EXCLUDED.price_text,
-                        location = EXCLUDED.location,
-                        street_address = EXCLUDED.street_address,
-                        item_info = EXCLUDED.item_info,
-                        link = EXCLUDED.link,
-                        image_url = EXCLUDED.image_url,
-                        rooms = EXCLUDED.rooms,
-                        sqm = EXCLUDED.sqm,
-                        floor = EXCLUDED.floor,
-                        neighborhood = EXCLUDED.neighborhood,
-                        city = EXCLUDED.city,
-                        data_updated_at = EXCLUDED.data_updated_at,
-                        last_seen = CURRENT_TIMESTAMP,
-                        is_active = 1,
-                        raw_data = EXCLUDED.raw_data
-                ''', [(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10],
-                       v[11], v[12], v[13], v[14], v[15]) for v in values],
-                    template='(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 1, %s)')
+                    values = []
+                    for apt in batch:
+                        values.append((
+                            apt['id'], apt.get('title'), apt.get('price'), apt.get('price_text'),
+                            apt.get('location'), apt.get('street_address'), apt.get('item_info'),
+                            apt.get('link'), apt.get('image_url'), apt.get('rooms'), apt.get('sqm'),
+                            apt.get('floor'), apt.get('neighborhood'), apt.get('city'),
+                            apt.get('data_updated_at'), now, 1, json.dumps(apt, ensure_ascii=False)
+                        ))
 
-                total += len(batch)
-                logger.info(f"💾 Batch saved: {total}/{len(apartments)} apartments")
+                    # PostgreSQL upsert with ON CONFLICT
+                    execute_values(cursor, '''
+                        INSERT INTO apartments (id, title, price, price_text, location, street_address,
+                            item_info, link, image_url, rooms, sqm, floor, neighborhood, city,
+                            data_updated_at, last_seen, is_active, raw_data)
+                        VALUES %s
+                        ON CONFLICT (id) DO UPDATE SET
+                            title = EXCLUDED.title,
+                            price = EXCLUDED.price,
+                            price_text = EXCLUDED.price_text,
+                            location = EXCLUDED.location,
+                            street_address = EXCLUDED.street_address,
+                            item_info = EXCLUDED.item_info,
+                            link = EXCLUDED.link,
+                            image_url = EXCLUDED.image_url,
+                            rooms = EXCLUDED.rooms,
+                            sqm = EXCLUDED.sqm,
+                            floor = EXCLUDED.floor,
+                            neighborhood = EXCLUDED.neighborhood,
+                            city = EXCLUDED.city,
+                            data_updated_at = EXCLUDED.data_updated_at,
+                            last_seen = EXCLUDED.last_seen,
+                            is_active = 1,
+                            raw_data = EXCLUDED.raw_data
+                    ''', values)
 
-            conn.commit()
+                    total += len(batch)
+                    logger.info(f"💾 Batch saved: {total}/{len(apartments)} apartments")
+
+                conn.commit()
+                logger.info(f"✅ Committed {total} apartments to PostgreSQL")
+
+        except Exception as e:
+            logger.error(f"❌ Batch upsert failed: {e}", exc_info=True)
+            raise
 
         return total
 
