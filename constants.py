@@ -9,15 +9,18 @@ DEFAULT_MAX_RETRIES = 3
 MIN_REQUEST_INTERVAL = 0.5  # seconds between requests
 
 # ============ Scraping Intervals ============
-DEFAULT_MIN_INTERVAL_MINUTES = 60
-DEFAULT_MAX_INTERVAL_MINUTES = 90
+DEFAULT_MIN_INTERVAL_MINUTES = 20  # More frequent with smart-stop
+DEFAULT_MAX_INTERVAL_MINUTES = 40  # ~30 min avg with randomization
 ADAPTIVE_DELAY_MIN_SECONDS = 2
 ADAPTIVE_DELAY_MAX_SECONDS = 300
 
 # ============ Scraping Logic ============
-CONSECUTIVE_KNOWN_THRESHOLD = 4  # Stop after N consecutive known listings
-MIN_RESULTS_FOR_REMOVAL = 10  # Minimum results before marking apartments as removed
-MAX_APARTMENTS_PER_REQUEST = 10000  # Limit for database queries
+CONSECUTIVE_KNOWN_THRESHOLD = 6  # Stop after N consecutive known listings (increased for large site)
+MIN_RESULTS_FOR_REMOVAL = 1000  # Minimum results before marking apartments as removed (high for 29K+ site)
+MAX_APARTMENTS_PER_REQUEST = 50000  # Limit for database queries (increased for 29K+ apartments)
+MAX_PAGES_FULL_SITE = 800  # Maximum pages for full site scrape (~29K apartments)
+INITIAL_SCRAPE_PAGE_DELAY = (1, 3)  # Faster delays for initial full scrape (seconds)
+NORMAL_SCRAPE_PAGE_DELAY = (3, 8)  # Normal delays after initial scrape
 
 # ============ Database ============
 DATABASE_TIMEOUT = 30.0  # seconds

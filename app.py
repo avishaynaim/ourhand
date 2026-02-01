@@ -22,7 +22,10 @@ import logging
 import threading
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
-from constants import CONSECUTIVE_KNOWN_THRESHOLD, MIN_RESULTS_FOR_REMOVAL, MIN_PRICE, MAX_PRICE
+from constants import (
+    CONSECUTIVE_KNOWN_THRESHOLD, MIN_RESULTS_FOR_REMOVAL, MIN_PRICE, MAX_PRICE,
+    MAX_PAGES_FULL_SITE, INITIAL_SCRAPE_PAGE_DELAY, NORMAL_SCRAPE_PAGE_DELAY
+)
 from concurrent.futures import ThreadPoolExecutor
 
 # Import our modules
@@ -90,9 +93,11 @@ class AdaptiveDelayManager:
 
     def __init__(self, database):
         self.db = database
-        self.base_page_delay = (5, 15)
+        self.base_page_delay = NORMAL_SCRAPE_PAGE_DELAY  # (3, 8) seconds
+        self.initial_page_delay = INITIAL_SCRAPE_PAGE_DELAY  # (1, 3) seconds for first full scrape
         self.base_cycle_delay = (20, 40)  # ~30 min avg, randomized to avoid patterns
         self.current_multiplier = 1.0
+        self.initial_scrape_mode = False  # Fast mode for first full-site scrape
         self._load_strategy()
 
     def _load_strategy(self):
@@ -152,8 +157,12 @@ class AdaptiveDelayManager:
             logger.info(f"🔄 Strategy: multiplier {old_multiplier:.2f} → {self.current_multiplier:.2f}")
             self._save_strategy()
 
-    def get_page_delay(self) -> float:
-        """Get adaptive page delay"""
+    def get_page_delay(self, initial_mode: bool = False) -> float:
+        """Get adaptive page delay - faster in initial scrape mode"""
+        if initial_mode or self.initial_scrape_mode:
+            base_min, base_max = self.initial_page_delay
+            # Add small random jitter
+            return random.uniform(base_min, base_max) + random.uniform(0, 0.5)
         base_min, base_max = self.base_page_delay
         return random.uniform(
             base_min * self.current_multiplier,
@@ -175,8 +184,11 @@ class AdaptiveDelayManager:
 class Yad2Monitor:
     """Main monitor class with all features integrated"""
 
+    # Threshold: if DB has fewer apartments than this, do full initial scrape
+    INITIAL_SCRAPE_THRESHOLD = 5000
+
     def __init__(self):
-        logger.info("🚀 Initializing Enhanced Yad2Monitor")
+        logger.info("🚀 Initializing Enhanced Yad2Monitor (Full Israel Rentals)")
 
         # Initialize database with persistent storage support
         # get_database() auto-detects PostgreSQL (DATABASE_URL) or SQLite
@@ -184,6 +196,9 @@ class Yad2Monitor:
 
         # Initialize components
         self.delay_manager = AdaptiveDelayManager(self.db)
+
+        # Check if we need initial full scrape
+        self.needs_initial_scrape = self._check_needs_initial_scrape()
         self.proxy_manager = ProxyManager()
         self.proxy_rotator = ProxyRotator(self.proxy_manager)
         self.analytics = MarketAnalytics(self.db)
@@ -220,20 +235,33 @@ class Yad2Monitor:
         # Web server thread
         self.web_thread = None
 
+        if self.needs_initial_scrape:
+            logger.info("⚠️ Database has < 5000 apartments - will perform FULL SITE SCRAPE on first run")
         logger.info("✅ Initialization complete")
+
+    def _check_needs_initial_scrape(self) -> bool:
+        """Check if we need to do a full initial scrape (DB is empty or very small)"""
+        try:
+            all_apts = self.db.get_all_apartments(active_only=False, limit=self.INITIAL_SCRAPE_THRESHOLD + 1)
+            count = len(all_apts)
+            logger.info(f"📊 Database has {count} apartments")
+            return count < self.INITIAL_SCRAPE_THRESHOLD
+        except Exception as e:
+            logger.warning(f"Could not check apartment count: {e}")
+            return True  # Assume we need initial scrape if can't check
 
     def _load_search_urls(self) -> List[Dict]:
         """Load search URLs from database or environment"""
         urls = self.db.get_search_urls()
 
         if not urls:
-            # Add default URL from environment
+            # Default URL: ALL Israel rentals (700+ pages, 29K+ apartments)
             default_url = os.environ.get(
                 "YAD2_URL",
-                "https://www.yad2.co.il/realestate/rent?topArea=41&area=12&city=8400"
+                "https://www.yad2.co.il/realestate/rent"
             )
-            url_id = self.db.add_search_url("Default Search", default_url)
-            urls = [{'id': url_id, 'name': "Default Search", 'url': default_url}]
+            url_id = self.db.add_search_url("All Israel Rentals", default_url)
+            urls = [{'id': url_id, 'name': "All Israel Rentals", 'url': default_url}]
 
         logger.info(f"📋 Loaded {len(urls)} search URLs")
         return urls
@@ -436,11 +464,11 @@ class Yad2Monitor:
             logger.error(f"❌ Error parsing apartment: {e}", exc_info=True)
             return None
 
-    def fetch_page(self, url: str, page: int = 1, max_retries: int = 3) -> Optional[str]:
+    def fetch_page(self, url: str, page: int = 1, max_retries: int = 3, initial_mode: bool = False) -> Optional[str]:
         """Fetch a page with retry logic and proxy support"""
         for attempt in range(max_retries):
             try:
-                delay = self.delay_manager.get_page_delay() * (attempt + 1)
+                delay = self.delay_manager.get_page_delay(initial_mode) * (attempt + 1)
                 logger.info(f"⏳ Delay: {delay:.2f}s before page {page}")
                 time.sleep(delay)
 
@@ -506,9 +534,80 @@ class Yad2Monitor:
 
         return None
 
-    def scrape_all_pages(self, base_url: str, max_pages: int = 50) -> Tuple[List[Dict], int]:
-        """Scrape pages with smart stop based on consecutive known listings"""
-        logger.info(f"🔍 Starting smart scrape from {base_url}")
+    def scrape_full_site(self, base_url: str, max_pages: int = MAX_PAGES_FULL_SITE) -> Tuple[List[Dict], int]:
+        """
+        INITIAL SCRAPE: Scrape ALL pages without smart-stop (for first run with 700+ pages).
+        Uses faster delays since we're just collecting data, not monitoring for changes.
+        """
+        logger.info(f"🚀 INITIAL FULL SITE SCRAPE - {max_pages} max pages")
+        logger.info(f"🔗 URL: {base_url}")
+
+        self.delay_manager.initial_scrape_mode = True
+        current_run_ts = int(datetime.now().timestamp() * 1000)
+        all_apartments = []
+        page = 1
+        empty_pages = 0
+        start_time = datetime.now()
+
+        while page <= max_pages:
+            # Progress update every 50 pages
+            if page % 50 == 0:
+                elapsed = (datetime.now() - start_time).total_seconds() / 60
+                rate = len(all_apartments) / max(elapsed, 0.1)
+                logger.info(f"{'=' * 60}")
+                logger.info(f"📊 PROGRESS: Page {page}/{max_pages} | {len(all_apartments)} apartments | {elapsed:.1f} min | {rate:.0f} apt/min")
+                logger.info(f"{'=' * 60}")
+
+            html = self.fetch_page(base_url, page, initial_mode=True)
+            if not html:
+                empty_pages += 1
+                if empty_pages >= 3:
+                    logger.info(f"🛑 3 consecutive empty pages - likely reached end at page {page}")
+                    break
+                page += 1
+                continue
+
+            empty_pages = 0  # Reset counter
+            soup = BeautifulSoup(html, 'html.parser')
+            h2_elements = self.find_apartment_elements(soup)
+
+            if not h2_elements:
+                empty_pages += 1
+                if empty_pages >= 3:
+                    logger.info(f"🛑 3 consecutive pages with no apartments - reached end at page {page}")
+                    break
+                page += 1
+                continue
+
+            parsed_count = 0
+            for h2_elem in h2_elements:
+                apt = self.parse_apartment(h2_elem)
+                if apt and apt['price'] and apt['link']:
+                    all_apartments.append(apt)
+                    parsed_count += 1
+
+            if page % 10 == 0 or page <= 5:
+                logger.info(f"📄 Page {page}: {parsed_count} apartments (total: {len(all_apartments)})")
+
+            page += 1
+
+        self.delay_manager.initial_scrape_mode = False
+        self.delay_manager.set_last_run_timestamp(current_run_ts)
+
+        elapsed = (datetime.now() - start_time).total_seconds() / 60
+        logger.info(f"{'=' * 60}")
+        logger.info(f"✅ INITIAL SCRAPE COMPLETE!")
+        logger.info(f"📊 Total: {len(all_apartments)} apartments from {page - 1} pages in {elapsed:.1f} minutes")
+        logger.info(f"{'=' * 60}")
+
+        return all_apartments, 0
+
+    def scrape_all_pages(self, base_url: str, max_pages: int = 20) -> Tuple[List[Dict], int]:
+        """
+        MONITORING SCRAPE: Check first few pages until consecutive known apartments found.
+        Used after initial scrape is complete.
+        """
+        logger.info(f"🔍 Starting monitoring scrape from {base_url}")
 
         current_run_ts = int(datetime.now().timestamp() * 1000)
         all_apartments = []
@@ -519,8 +618,8 @@ class Yad2Monitor:
         logger.info(f"📊 Stop strategy: Will stop after {CONSECUTIVE_KNOWN_THRESHOLD} consecutive known listings")
 
         while page <= max_pages:
-            logger.info(f"{'=' * 50}")
-            logger.info(f"📄 Processing page {page} (consecutive known: {consecutive_known}/{CONSECUTIVE_KNOWN_THRESHOLD})")
+            if page <= 5 or page % 10 == 0:
+                logger.info(f"📄 Page {page} (consecutive known: {consecutive_known}/{CONSECUTIVE_KNOWN_THRESHOLD})")
 
             html = self.fetch_page(base_url, page)
             if not html:
@@ -553,11 +652,8 @@ class Yad2Monitor:
                             pages_saved = max_pages - page
                             logger.info(f"🛑 Smart stop: {consecutive_known} consecutive known listings reached!")
                             logger.info(f"💾 Saved approximately {pages_saved} page requests!")
-                            # Update last run timestamp before returning
                             self.delay_manager.set_last_run_timestamp(current_run_ts)
-                            logger.info(f"{'=' * 50}")
-                            logger.info(f"✅ Scraping complete: {len(all_apartments)} apartments from {page} pages")
-                            logger.info(f"📊 Last page: {new_on_page} new, {known_on_page} known")
+                            logger.info(f"✅ Monitoring complete: {len(all_apartments)} apartments from {page} pages")
                             return all_apartments, pages_saved
                     else:
                         # New listing - reset counter
@@ -677,7 +773,17 @@ class Yad2Monitor:
 
         for search in self.search_urls:
             logger.info(f"📋 Scraping: {search['name']}")
-            apartments, pages_saved = self.scrape_all_pages(search['url'])
+
+            # Choose scraping method based on initial scrape need
+            if self.needs_initial_scrape:
+                logger.info("🚀 Running INITIAL FULL SITE SCRAPE (this will take a while)...")
+                apartments, pages_saved = self.scrape_full_site(search['url'])
+                # After initial scrape, switch to monitoring mode
+                self.needs_initial_scrape = False
+                logger.info("✅ Initial scrape complete - switching to monitoring mode")
+            else:
+                # Normal monitoring scrape with smart-stop
+                apartments, pages_saved = self.scrape_all_pages(search['url'])
 
             if apartments:
                 new_apts, price_changes, _ = self.process_apartments(apartments)
@@ -739,10 +845,14 @@ class Yad2Monitor:
             self.start_web_server(web_port)
 
         # Send startup notification
-        self.notifier.send_startup_message({
-            'min_interval': int(os.environ.get('MIN_INTERVAL_MINUTES', 60)),
-            'max_interval': int(os.environ.get('MAX_INTERVAL_MINUTES', 90))
-        })
+        startup_info = {
+            'min_interval': int(os.environ.get('MIN_INTERVAL_MINUTES', 20)),
+            'max_interval': int(os.environ.get('MAX_INTERVAL_MINUTES', 40))
+        }
+        if self.needs_initial_scrape:
+            startup_info['initial_scrape'] = True
+            logger.info("⚠️ INITIAL FULL SITE SCRAPE WILL RUN - This may take 30-60 minutes")
+        self.notifier.send_startup_message(startup_info)
 
         iteration = 0
 
