@@ -67,6 +67,19 @@ def get_dashboard_html():
         .ms-clear { display: block; padding: 4px 8px; font-size: 10px; color: #667eea;
             cursor: pointer; border-top: 1px solid #e5e7eb; text-align: center; }
         .dark .ms-clear { border-top-color: #374151; }
+        /* Price trend tooltip */
+        .price-trend { position: relative; display: inline-block; cursor: pointer; margin-right: 4px; font-size: 14px; }
+        .price-trend .pt-tip { display: none; position: absolute; bottom: 100%; right: 50%; transform: translateX(50%);
+            background: #1f2937; color: #fff; border-radius: 8px; padding: 8px 10px; font-size: 11px;
+            white-space: nowrap; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.25); min-width: 140px; }
+        .price-trend:hover .pt-tip { display: block; }
+        .pt-tip .pt-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+        .pt-tip .pt-date { color: #9ca3af; }
+        .pt-tip .pt-price { font-weight: 600; }
+        .pt-tip .pt-diff { font-size: 10px; }
+        .pt-tip .pt-up { color: #f87171; }
+        .pt-tip .pt-down { color: #34d399; }
+        .pt-tip .pt-title { font-weight: 700; margin-bottom: 4px; border-bottom: 1px solid #374151; padding-bottom: 3px; text-align: center; }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen">
@@ -246,7 +259,7 @@ async function loadAll() {
     try {
         const [healthRes, aptsRes] = await Promise.all([
             fetch('/health'),
-            fetch('/api/apartments?limit=50000&include_inactive=1')
+            fetch('/api/apartments?limit=50000&include_inactive=1&include_price_history=1')
         ]);
         healthData = await healthRes.json();
         const aptsData = await aptsRes.json();
@@ -546,6 +559,39 @@ function miniBuildingViz(floor) {
     return html;
 }
 
+function priceTrendHtml(apt) {
+    const hist = apt.price_history;
+    if (!hist || hist.length < 2) return '';
+    const first = hist[0].price;
+    const last = hist[hist.length - 1].price;
+    const diff = last - first;
+    let icon, cls;
+    if (diff < 0) { icon = '📉'; cls = 'pt-down'; }
+    else if (diff > 0) { icon = '📈'; cls = 'pt-up'; }
+    else { icon = '➡️'; cls = ''; }
+    let tip = '<div class="pt-tip"><div class="pt-title">היסטוריית מחיר</div>';
+    for (let i = 0; i < hist.length; i++) {
+        const h = hist[i];
+        const p = '₪' + h.price.toLocaleString();
+        let diffHtml = '';
+        if (i > 0) {
+            const d = h.price - hist[i-1].price;
+            if (d !== 0) {
+                const sign = d > 0 ? '+' : '';
+                const dc = d > 0 ? 'pt-up' : 'pt-down';
+                diffHtml = ' <span class="pt-diff '+dc+'">(' + sign + d.toLocaleString() + ')</span>';
+            }
+        }
+        tip += '<div class="pt-row"><span class="pt-date">' + esc(h.date) + '</span><span class="pt-price">' + p + diffHtml + '</span></div>';
+    }
+    const totalDiff = last - first;
+    const totalSign = totalDiff > 0 ? '+' : '';
+    const totalCls = totalDiff > 0 ? 'pt-up' : totalDiff < 0 ? 'pt-down' : '';
+    tip += '<div class="pt-row" style="border-top:1px solid #374151;margin-top:3px;padding-top:3px"><span class="pt-date">סה"כ</span><span class="pt-diff '+totalCls+'" style="font-size:12px;font-weight:700">' + totalSign + totalDiff.toLocaleString() + '</span></div>';
+    tip += '</div>';
+    return '<span class="price-trend">' + icon + tip + '</span>';
+}
+
 // ===== TABLE VIEW =====
 let tableHeaderBuilt = false;
 let uniqueRooms = [];
@@ -685,7 +731,10 @@ function updateMsOptions(id, options, labelFn) {
         html += '<label data-val="'+esc(sv).toLowerCase()+'"'+hidden+'><input type="checkbox" value="'+esc(sv)+'"'+chk+' onchange="msChanged(\\''+id+'\\')">'+esc(lbl)+'</label>';
     });
     html += '</div>';
-    html += '<div class="ms-clear" onclick="msClear(\\''+id+'\\')">נקה הכל</div>';
+    html += '<div style="display:flex;border-top:1px solid #e5e7eb" class="dark-border-fix">';
+    html += '<div class="ms-clear" style="flex:1;border-top:none" onclick="msSelectAll(\\''+id+'\\')">בחר הכל</div>';
+    html += '<div class="ms-clear" style="flex:1;border-top:none;border-right:1px solid #e5e7eb" onclick="msClear(\\''+id+'\\')">נקה הכל</div>';
+    html += '</div>';
     drop.innerHTML = html;
     // Update button text
     const btn = document.getElementById(id+'-btn');
@@ -782,8 +831,10 @@ function makeMultiSelect(id, options, labelFn) {
         html += '<label data-val="'+esc(sv).toLowerCase()+'"><input type="checkbox" value="'+esc(sv)+'" onchange="msChanged(\\''+id+'\\')">'+esc(labelFn ? labelFn(v) : v)+'</label>';
     });
     html += '</div>';
-    html += '<div class="ms-clear" onclick="msClear(\\''+id+'\\')">נקה הכל</div>';
-    html += '</div></div>';
+    html += '<div style="display:flex;border-top:1px solid #e5e7eb" class="dark-border-fix">';
+    html += '<div class="ms-clear" style="flex:1;border-top:none" onclick="msSelectAll(\\''+id+'\\')">בחר הכל</div>';
+    html += '<div class="ms-clear" style="flex:1;border-top:none;border-right:1px solid #e5e7eb" onclick="msClear(\\''+id+'\\')">נקה הכל</div>';
+    html += '</div></div></div>';
     return html;
 }
 
@@ -830,6 +881,18 @@ function msChanged(id) {
 function msClear(id) {
     const drop = document.getElementById(id+'-drop');
     drop.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = false);
+    msChanged(id);
+}
+
+function msSelectAll(id) {
+    const opts = document.getElementById(id+'-opts');
+    if (!opts) return;
+    opts.querySelectorAll('label').forEach(lbl => {
+        if (lbl.style.display !== 'none') {
+            const cb = lbl.querySelector('input[type=checkbox]');
+            if (cb) cb.checked = true;
+        }
+    });
     msChanged(id);
 }
 
@@ -887,7 +950,9 @@ function ensureTableStructure() {
                 '<input type="text" class="ms-search" id="tf-status-search" placeholder="חפש..." oninput="msFilter(\\'tf-status\\',this.value)">' +
                 '<div class="ms-opts" id="tf-status-opts">' +
                 statusOpts.map(o => '<label data-val="'+o.v+'"><input type="checkbox" value="'+o.v+'" onchange="msChanged(\\'tf-status\\')">'+o.l+'</label>').join('') +
-                '</div><div class="ms-clear" onclick="msClear(\\'tf-status\\')">נקה הכל</div></div></div>';
+                '</div><div style="display:flex;border-top:1px solid #e5e7eb" class="dark-border-fix">' +
+                '<div class="ms-clear" style="flex:1;border-top:none" onclick="msSelectAll(\\'tf-status\\')">בחר הכל</div>' +
+                '<div class="ms-clear" style="flex:1;border-top:none;border-right:1px solid #e5e7eb" onclick="msClear(\\'tf-status\\')">נקה הכל</div></div></div></div>';
         } else if (c.filter === 'ms') {
             const lf = c.labelFn ? (v => v + " חד\\'") : null;
             filterHtml = makeMultiSelect(c.tfId, c.opts, lf);
@@ -950,7 +1015,7 @@ function renderTableBody() {
             '<td class="text-center">'+roomsBadge+'</td>' +
             '<td class="text-center">'+(sqmVal || '-')+'</td>' +
             '<td class="text-center" style="white-space:nowrap">'+miniBldg+' <span class="text-xs font-medium">'+floorLabel+'</span></td>' +
-            '<td class="font-bold text-brand text-sm whitespace-nowrap">'+price+'</td>' +
+            '<td class="font-bold text-brand text-sm whitespace-nowrap">'+priceTrendHtml(apt)+price+'</td>' +
             '<td class="text-xs whitespace-nowrap">'+firstSeen+'</td>' +
             '<td>'+(link ? '<a href="'+esc(link)+'" target="_blank" class="text-brand hover:underline text-xs font-medium">יד2</a>' : '-')+'</td>' +
             '</tr>';

@@ -689,6 +689,25 @@ class PostgreSQLDatabase:
             ''', (apartment_id, limit))
             return [dict(row) for row in cursor.fetchall()]
 
+    def get_all_price_histories(self) -> Dict[str, list]:
+        """Get price history for all apartments that have changes, grouped by apartment_id"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute('''
+                SELECT apartment_id, price, recorded_at FROM price_history
+                ORDER BY apartment_id, recorded_at ASC
+            ''')
+            result = {}
+            for row in cursor.fetchall():
+                apt_id = row['apartment_id']
+                if apt_id not in result:
+                    result[apt_id] = []
+                result[apt_id].append({
+                    'price': row['price'],
+                    'date': row['recorded_at'].strftime('%Y-%m-%d') if hasattr(row['recorded_at'], 'strftime') else str(row['recorded_at'])[:10]
+                })
+            return result
+
     def get_price_changes(self, days: int = 7) -> List[Dict]:
         """Get recent price changes"""
         with self.get_connection() as conn:

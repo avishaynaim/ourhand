@@ -829,6 +829,18 @@ def create_web_app(database, analytics=None, telegram_bot=None):
             if filters.get('limit'):
                 apartments = apartments[:filters['limit']]
 
+            # Attach price history if requested
+            include_price_history = request.args.get('include_price_history', type=int, default=0)
+            if include_price_history:
+                try:
+                    all_histories = db.get_all_price_histories()
+                    for apt in apartments:
+                        hist = all_histories.get(apt.get('id'), [])
+                        if len(hist) > 1:
+                            apt['price_history'] = hist
+                except Exception as e:
+                    logger.warning(f"Failed to load price histories: {e}")
+
             return jsonify({
                 'apartments': apartments,
                 'total': len(apartments),
