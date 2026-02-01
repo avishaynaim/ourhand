@@ -534,36 +534,57 @@ class Yad2Monitor:
 
         return None
 
-    def _fetch_page_for_batch(self, args: Tuple[str, int]) -> Tuple[int, List[Dict]]:
-        """Fetch a single page and parse apartments - for concurrent use"""
+    def _fetch_page_for_batch(self, args: Tuple[str, int]) -> Tuple[int, List[Dict], str]:
+        """Fetch a single page and parse apartments - for concurrent use.
+        Returns (page_num, apartments, status) where status is 'ok', 'error', or 'rate_limit'
+        """
         base_url, page = args
         apartments = []
-        try:
-            # Random delay to avoid pattern detection
-            delay = random.uniform(0.5, 2.0)
-            time.sleep(delay)
+        status = 'error'
 
-            if page > 1:
-                separator = '&' if '?' in base_url else '?'
-                page_url = f"{base_url}{separator}page={page}"
-            else:
-                page_url = base_url
+        for attempt in range(3):  # Retry up to 3 times
+            try:
+                # Random delay to avoid pattern detection
+                delay = random.uniform(0.5, 2.0) * (attempt + 1)
+                time.sleep(delay)
 
-            response = requests.get(page_url, headers=self.get_headers(), timeout=30)
+                if page > 1:
+                    separator = '&' if '?' in base_url else '?'
+                    page_url = f"{base_url}{separator}page={page}"
+                else:
+                    page_url = base_url
 
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                h2_elements = self.find_apartment_elements(soup)
+                response = requests.get(page_url, headers=self.get_headers(), timeout=30)
 
-                for h2_elem in h2_elements:
-                    apt = self.parse_apartment(h2_elem)
-                    if apt and apt['price'] and apt['link']:
-                        apartments.append(apt)
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    h2_elements = self.find_apartment_elements(soup)
 
-        except Exception as e:
-            logger.debug(f"Error fetching page {page}: {e}")
+                    for h2_elem in h2_elements:
+                        apt = self.parse_apartment(h2_elem)
+                        if apt and apt['price'] and apt['link']:
+                            apartments.append(apt)
 
-        return page, apartments
+                    status = 'ok'
+                    break  # Success, exit retry loop
+
+                elif response.status_code == 429:
+                    logger.warning(f"⚠️ Page {page}: Rate limited (429), attempt {attempt + 1}")
+                    status = 'rate_limit'
+                    time.sleep(10 * (attempt + 1))  # Wait longer on rate limit
+                    continue
+
+                else:
+                    logger.warning(f"⚠️ Page {page}: HTTP {response.status_code}, attempt {attempt + 1}")
+                    status = 'error'
+                    continue
+
+            except Exception as e:
+                logger.warning(f"⚠️ Page {page}: Error {e}, attempt {attempt + 1}")
+                status = 'error'
+                continue
+
+        return page, apartments, status
 
     def scrape_full_site(self, base_url: str, max_pages: int = MAX_PAGES_FULL_SITE) -> Tuple[List[Dict], int]:
         """
@@ -580,11 +601,14 @@ class Yad2Monitor:
         total_saved = 0
         start_time = datetime.now()
 
-        # Settings
-        BATCH_SIZE = 5  # Pages per batch
-        MAX_WORKERS = 5  # Concurrent requests
+        # Settings - reduced concurrency to avoid rate limits
+        BATCH_SIZE = 3  # Pages per batch (reduced from 5)
+        MAX_WORKERS = 3  # Concurrent requests (reduced from 5)
         SAVE_THRESHOLD = 1000  # Save to DB every N apartments
         consecutive_empty_batches = 0
+        failed_pages = []
+        total_pages_ok = 0
+        total_pages_failed = 0
 
         page = 1
         while page <= max_pages:
@@ -597,12 +621,18 @@ class Yad2Monitor:
             with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
                 results = list(executor.map(self._fetch_page_for_batch, batch_args))
 
-            # Collect results
+            # Collect results and track failures
             pages_with_data = 0
-            for page_num, apts in results:
-                if apts:
+            for page_num, apts, status in results:
+                if status == 'ok' and apts:
                     batch_apartments.extend(apts)
                     pages_with_data += 1
+                    total_pages_ok += 1
+                elif status != 'ok':
+                    failed_pages.append(page_num)
+                    total_pages_failed += 1
+                else:
+                    total_pages_ok += 1  # OK but empty
 
             pending_apartments.extend(batch_apartments)
 
@@ -629,13 +659,23 @@ class Yad2Monitor:
             elapsed = (datetime.now() - start_time).total_seconds() / 60
             total_found = total_saved + len(pending_apartments)
             rate = total_found / max(elapsed, 0.1)
-            logger.info(f"📊 Pages {batch_pages[0]}-{batch_pages[-1]}: +{len(batch_apartments)} | Found: {total_found} | Saved: {total_saved} | {elapsed:.1f}min | {rate:.0f}/min")
+            logger.info(f"📊 Pages {batch_pages[0]}-{batch_pages[-1]}: +{len(batch_apartments)} | Found: {total_found} | Saved: {total_saved} | OK:{total_pages_ok} Fail:{total_pages_failed} | {elapsed:.1f}min")
 
             page += BATCH_SIZE
 
             # Random delay between batches to avoid detection
             batch_delay = random.uniform(2, 5)
             time.sleep(batch_delay)
+
+        # RETRY failed pages
+        if failed_pages:
+            logger.info(f"🔄 Retrying {len(failed_pages)} failed pages...")
+            for retry_page in failed_pages[:50]:  # Retry up to 50 failed pages
+                time.sleep(random.uniform(3, 6))
+                _, apts, status = self._fetch_page_for_batch((base_url, retry_page))
+                if apts:
+                    pending_apartments.extend(apts)
+                    logger.info(f"✅ Retry page {retry_page}: +{len(apts)} apartments")
 
         # Save remaining apartments
         if pending_apartments:
@@ -653,6 +693,9 @@ class Yad2Monitor:
         logger.info(f"{'=' * 60}")
         logger.info(f"✅ INITIAL SCRAPE COMPLETE!")
         logger.info(f"📊 Total saved: {total_saved} apartments in {elapsed:.1f} minutes")
+        logger.info(f"📊 Pages: {total_pages_ok} OK, {total_pages_failed} failed")
+        if failed_pages:
+            logger.warning(f"⚠️ Failed pages: {failed_pages[:20]}{'...' if len(failed_pages) > 20 else ''}")
         logger.info(f"{'=' * 60}")
 
         # Return empty list since we already saved everything
