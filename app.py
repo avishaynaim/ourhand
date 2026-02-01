@@ -615,7 +615,12 @@ class Yad2Monitor:
         total_pages_ok = 0
         total_pages_failed = 0
 
-        page = 1
+        # Check for start page override
+        start_page = int(os.environ.get('SCRAPE_START_PAGE', '1'))
+        if start_page > 1:
+            logger.info(f"📍 Starting from page {start_page} (SCRAPE_START_PAGE)")
+
+        page = start_page
         while page <= max_pages:
             # Create batch of pages to fetch
             batch_pages = list(range(page, min(page + BATCH_SIZE, max_pages + 1)))
