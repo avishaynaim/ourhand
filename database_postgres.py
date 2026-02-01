@@ -337,6 +337,15 @@ class PostgreSQLDatabase:
         if not apartments:
             return 0
 
+        # DEDUPLICATE by ID - keep last occurrence (most recent data)
+        seen_ids = {}
+        for apt in apartments:
+            seen_ids[apt['id']] = apt
+        unique_apartments = list(seen_ids.values())
+
+        if len(unique_apartments) < len(apartments):
+            logger.info(f"📋 Deduplicated: {len(apartments)} → {len(unique_apartments)} unique apartments")
+
         total = 0
         now = datetime.now()
 
@@ -345,8 +354,8 @@ class PostgreSQLDatabase:
                 cursor = conn.cursor()
 
                 # Process in batches
-                for i in range(0, len(apartments), batch_size):
-                    batch = apartments[i:i + batch_size]
+                for i in range(0, len(unique_apartments), batch_size):
+                    batch = unique_apartments[i:i + batch_size]
 
                     # Use execute_values for efficient bulk insert
                     from psycopg2.extras import execute_values
