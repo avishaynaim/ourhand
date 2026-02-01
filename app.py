@@ -568,7 +568,7 @@ class Yad2Monitor:
     def scrape_full_site(self, base_url: str, max_pages: int = MAX_PAGES_FULL_SITE) -> Tuple[List[Dict], int]:
         """
         INITIAL SCRAPE: Scrape ALL pages with CONCURRENT requests.
-        Fetches pages in parallel batches, collects all apartments, saves at end.
+        Saves to DB every 1000 apartments to avoid data loss on crash.
         """
         logger.info(f"🚀 INITIAL FULL SITE SCRAPE - PARALLEL MODE")
         logger.info(f"🔗 URL: {base_url}")
@@ -576,12 +576,14 @@ class Yad2Monitor:
 
         self.delay_manager.initial_scrape_mode = True
         current_run_ts = int(datetime.now().timestamp() * 1000)
-        all_apartments = []
+        pending_apartments = []  # Buffer for periodic saves
+        total_saved = 0
         start_time = datetime.now()
 
-        # Concurrent settings
+        # Settings
         BATCH_SIZE = 5  # Pages per batch
         MAX_WORKERS = 5  # Concurrent requests
+        SAVE_THRESHOLD = 1000  # Save to DB every N apartments
         consecutive_empty_batches = 0
 
         page = 1
@@ -602,7 +604,7 @@ class Yad2Monitor:
                     batch_apartments.extend(apts)
                     pages_with_data += 1
 
-            all_apartments.extend(batch_apartments)
+            pending_apartments.extend(batch_apartments)
 
             # Check for end of data
             if pages_with_data == 0:
@@ -613,10 +615,21 @@ class Yad2Monitor:
             else:
                 consecutive_empty_batches = 0
 
+            # PERIODIC SAVE - save every 1000 apartments
+            if len(pending_apartments) >= SAVE_THRESHOLD:
+                try:
+                    saved = self.db.batch_upsert_apartments(pending_apartments)
+                    total_saved += saved
+                    logger.info(f"💾 SAVED {saved} apartments to DB (total saved: {total_saved})")
+                    pending_apartments = []  # Clear buffer
+                except Exception as e:
+                    logger.error(f"❌ Periodic save failed: {e}")
+
             # Progress update
             elapsed = (datetime.now() - start_time).total_seconds() / 60
-            rate = len(all_apartments) / max(elapsed, 0.1)
-            logger.info(f"📊 Pages {batch_pages[0]}-{batch_pages[-1]}: +{len(batch_apartments)} apts | Total: {len(all_apartments)} | {elapsed:.1f}min | {rate:.0f}/min")
+            total_found = total_saved + len(pending_apartments)
+            rate = total_found / max(elapsed, 0.1)
+            logger.info(f"📊 Pages {batch_pages[0]}-{batch_pages[-1]}: +{len(batch_apartments)} | Found: {total_found} | Saved: {total_saved} | {elapsed:.1f}min | {rate:.0f}/min")
 
             page += BATCH_SIZE
 
@@ -624,16 +637,26 @@ class Yad2Monitor:
             batch_delay = random.uniform(2, 5)
             time.sleep(batch_delay)
 
+        # Save remaining apartments
+        if pending_apartments:
+            try:
+                saved = self.db.batch_upsert_apartments(pending_apartments)
+                total_saved += saved
+                logger.info(f"💾 FINAL SAVE: {saved} apartments (total: {total_saved})")
+            except Exception as e:
+                logger.error(f"❌ Final save failed: {e}")
+
         self.delay_manager.initial_scrape_mode = False
         self.delay_manager.set_last_run_timestamp(current_run_ts)
 
         elapsed = (datetime.now() - start_time).total_seconds() / 60
         logger.info(f"{'=' * 60}")
         logger.info(f"✅ INITIAL SCRAPE COMPLETE!")
-        logger.info(f"📊 Total: {len(all_apartments)} apartments in {elapsed:.1f} minutes")
+        logger.info(f"📊 Total saved: {total_saved} apartments in {elapsed:.1f} minutes")
         logger.info(f"{'=' * 60}")
 
-        return all_apartments, 0
+        # Return empty list since we already saved everything
+        return [], 0
 
     def scrape_all_pages(self, base_url: str, max_pages: int = 20) -> Tuple[List[Dict], int]:
         """
@@ -843,12 +866,8 @@ class Yad2Monitor:
             # Choose scraping method based on initial scrape need
             if self.needs_initial_scrape:
                 logger.info("🚀 Running INITIAL FULL SITE SCRAPE (parallel mode)...")
-                apartments, pages_saved = self.scrape_full_site(search['url'])
-
-                # Use batch save for initial scrape - much faster!
-                if apartments:
-                    count = self.process_apartments_batch(apartments)
-                    logger.info(f"✅ Initial scrape complete - {count} apartments saved")
+                # scrape_full_site saves directly to DB every 1000 apartments
+                self.scrape_full_site(search['url'])
 
                 # Switch to monitoring mode
                 self.needs_initial_scrape = False
