@@ -27,6 +27,21 @@ def get_dashboard_html():
         ::-webkit-scrollbar-thumb { background: #667eea40; border-radius: 3px; }
         /* Smooth transitions for dark mode */
         * { transition: background-color 0.2s, border-color 0.2s, color 0.2s; }
+        /* Table styles */
+        .apt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+        .apt-table th { position: sticky; top: 0; z-index: 10; cursor: pointer; user-select: none;
+            padding: 8px 6px; text-align: right; font-weight: 600; white-space: nowrap;
+            border-bottom: 2px solid #667eea; }
+        .apt-table th:hover { background: #667eea20; }
+        .apt-table th .sort-icon { font-size: 10px; margin-right: 2px; opacity: 0.4; }
+        .apt-table th.sorted .sort-icon { opacity: 1; color: #667eea; }
+        .apt-table td { padding: 6px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
+        .dark .apt-table td { border-bottom-color: #374151; }
+        .apt-table tr:hover td { background: #667eea10; }
+        .apt-table .col-filter { width: 100%; margin-top: 4px; padding: 3px 5px; font-size: 11px;
+            border: 1px solid #d1d5db; border-radius: 4px; background: inherit; color: inherit; }
+        .dark .apt-table .col-filter { border-color: #4b5563; }
+        .table-wrapper { overflow-x: auto; border-radius: 12px; }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen">
@@ -108,15 +123,43 @@ def get_dashboard_html():
         </div>
     </div>
 
-    <!-- View Title -->
+    <!-- View Title + View Toggle -->
     <div class="flex items-center justify-between mb-4">
         <h2 id="view-title" class="text-lg sm:text-xl font-bold text-brand">🏢 כל הדירות</h2>
-        <span id="view-count" class="text-sm text-gray-500 dark:text-gray-400"></span>
+        <div class="flex items-center gap-3">
+            <span id="view-count" class="text-sm text-gray-500 dark:text-gray-400"></span>
+            <div class="flex rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600">
+                <button onclick="setViewMode('cards')" id="btn-cards"
+                    class="px-3 py-1.5 text-sm font-medium bg-brand text-white">🃏 כרטיסים</button>
+                <button onclick="setViewMode('table')" id="btn-table"
+                    class="px-3 py-1.5 text-sm font-medium bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600">📊 טבלה</button>
+            </div>
+        </div>
     </div>
 
     <!-- Apartment List -->
     <div id="apt-container">
         <div class="text-center py-12 text-gray-400">טוען נתונים...</div>
+    </div>
+
+    <!-- Pagination -->
+    <div id="pagination" class="hidden flex items-center justify-center gap-2 mt-6 mb-8 flex-wrap">
+        <button onclick="changePage(-1)" id="prev-page"
+            class="px-3 py-2 text-sm font-medium bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed">
+            → הקודם
+        </button>
+        <div id="page-numbers" class="flex items-center gap-1"></div>
+        <button onclick="changePage(1)" id="next-page"
+            class="px-3 py-2 text-sm font-medium bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed">
+            הבא ←
+        </button>
+        <select id="page-size" onchange="changePageSize()"
+            class="px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800">
+            <option value="25">25</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="250">250</option>
+        </select>
     </div>
 
 </div>
@@ -126,6 +169,13 @@ let allApts = [];
 let removedApts = [];
 let currentFilter = 'all';
 let healthData = null;
+let viewMode = localStorage.getItem('viewMode') || 'cards';
+let currentPage = 1;
+let pageSize = parseInt(localStorage.getItem('pageSize')) || 50;
+let filteredAptsCache = [];
+let tableSortCol = 'first_seen';
+let tableSortDir = 'desc';
+let tableColFilters = {};
 
 function esc(t) {
     if (!t) return '';
@@ -140,35 +190,51 @@ function toggleTheme() {
     document.getElementById('theme-btn').textContent = isDark ? '☀️' : '🌙';
 }
 
+function setViewMode(mode) {
+    viewMode = mode;
+    localStorage.setItem('viewMode', mode);
+    const bc = document.getElementById('btn-cards');
+    const bt = document.getElementById('btn-table');
+    if (mode === 'cards') {
+        bc.className = 'px-3 py-1.5 text-sm font-medium bg-brand text-white';
+        bt.className = 'px-3 py-1.5 text-sm font-medium bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600';
+    } else {
+        bt.className = 'px-3 py-1.5 text-sm font-medium bg-brand text-white';
+        bc.className = 'px-3 py-1.5 text-sm font-medium bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600';
+    }
+    currentPage = 1;
+    renderCurrentView();
+}
+
 async function loadAll() {
     try {
         const [healthRes, aptsRes] = await Promise.all([
             fetch('/health'),
-            fetch('/api/apartments?limit=500&include_inactive=1')
+            fetch('/api/apartments?limit=50000&include_inactive=1')
         ]);
         healthData = await healthRes.json();
         const aptsData = await aptsRes.json();
         allApts = aptsData.apartments || aptsData || [];
-        removedApts = allApts.filter(a => !a.is_active);
-
-        // Debug: log all text fields for first 3 apartments
-        console.log('=== FLOOR DEBUG ===');
-        console.log('Total apartments:', allApts.length);
-        allApts.slice(0, 3).forEach((a, i) => {
-            console.log('Apt ' + i + ':', JSON.stringify({
-                floor: a.floor, rooms: a.rooms, sqm: a.sqm,
-                title: a.title, item_info: a.item_info,
-                location: a.location, street_address: a.street_address,
-                price_text: a.price_text
-            }));
-            // Search ALL string values for קומה
-            Object.entries(a).forEach(([k,v]) => {
-                if (typeof v === 'string' && /קומה/.test(v)) {
-                    console.log('  FOUND קומה in field "' + k + '":', v);
-                }
-            });
+        // Pre-compute extracted fields for each apartment
+        allApts.forEach(a => {
+            const allText = Object.values(a).filter(v => typeof v === 'string').join(' ')
+                .replace(/[\\u200e\\u200f\\u200b\\u200c\\u200d\\u202a-\\u202e\\u2066-\\u2069]/g, '');
+            let fn = (a.floor != null && a.floor !== '') ? parseInt(a.floor) : null;
+            if (fn == null || isNaN(fn)) {
+                fn = null;
+                const fm = allText.match(/קומה\\s*(\\d+)/);
+                if (fm) fn = parseInt(fm[1]);
+                else if (/קומת\\s*קרקע|קומת\\s*כניסה/.test(allText)) fn = 0;
+            }
+            a._floor = fn;
+            if (!a.sqm) {
+                const sm = allText.match(/(\\d+)\\s*(?:מ"ר|מ״ר)/);
+                if (sm) a._sqm = parseInt(sm[1]);
+            } else {
+                a._sqm = parseInt(a.sqm);
+            }
         });
-
+        removedApts = allApts.filter(a => !a.is_active);
         updateStats();
         filterBy(currentFilter);
         document.getElementById('filter-bar').classList.remove('hidden');
@@ -186,19 +252,14 @@ function updateStats() {
     const newApts = activeApts.filter(a => (now - new Date(a.first_seen).getTime()) < twoDays);
     const prices = activeApts.map(a => a.price).filter(p => p > 0);
     const avg = prices.length ? Math.round(prices.reduce((a,b) => a+b, 0) / prices.length) : 0;
-
-    // Calculate today's apartments (midnight to midnight)
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(todayStart);
-    todayEnd.setDate(todayEnd.getDate() + 1);
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const todayEnd = new Date(todayStart); todayEnd.setDate(todayEnd.getDate()+1);
     const todayApts = allApts.filter(a => {
-        const firstSeen = new Date(a.first_seen).getTime();
-        const lastSeen = a.last_seen ? new Date(a.last_seen).getTime() : firstSeen;
-        return (firstSeen >= todayStart.getTime() && firstSeen < todayEnd.getTime()) ||
-               (lastSeen >= todayStart.getTime() && lastSeen < todayEnd.getTime());
+        const fs = new Date(a.first_seen).getTime();
+        const ls = a.last_seen ? new Date(a.last_seen).getTime() : fs;
+        return (fs >= todayStart.getTime() && fs < todayEnd.getTime()) ||
+               (ls >= todayStart.getTime() && ls < todayEnd.getTime());
     });
-
     document.getElementById('v-total').textContent = allApts.length;
     document.getElementById('v-new').textContent = newApts.length;
     document.getElementById('v-today').textContent = todayApts.length;
@@ -209,6 +270,7 @@ function updateStats() {
 
 function filterBy(type) {
     currentFilter = type;
+    currentPage = 1;
     document.querySelectorAll('.stat-card').forEach(s => {
         s.classList.remove('border-brand', 'bg-indigo-50', 'dark:bg-indigo-900/20');
         s.classList.add('border-transparent');
@@ -218,14 +280,10 @@ function filterBy(type) {
         el.classList.add('border-brand', 'bg-indigo-50', 'dark:bg-indigo-900/20');
         el.classList.remove('border-transparent');
     }
-
     const titles = {
-        'all': '🏢 כל הדירות',
-        'new': '🆕 דירות חדשות (48 שעות)',
-        'today': '📅 דירות היום (24 שעות)',
-        'price-drop': '📉 ירידות מחיר',
-        'removed': '🚫 דירות שהוסרו',
-        'avg': '💰 כל הדירות (לפי מחיר)'
+        'all': '🏢 כל הדירות', 'new': '🆕 דירות חדשות (48 שעות)',
+        'today': '📅 דירות היום (24 שעות)', 'price-drop': '📉 ירידות מחיר',
+        'removed': '🚫 דירות שהוסרו', 'avg': '💰 כל הדירות (לפי מחיר)'
     };
     document.getElementById('view-title').textContent = titles[type] || titles['all'];
     applyFilters();
@@ -238,15 +296,12 @@ function getFilteredApts() {
         case 'new':
             return allApts.filter(a => a.is_active !== 0 && (now - new Date(a.first_seen).getTime()) < twoDays);
         case 'today':
-            const todayStart = new Date();
-            todayStart.setHours(0, 0, 0, 0);
-            const todayEnd = new Date(todayStart);
-            todayEnd.setDate(todayEnd.getDate() + 1);
+            const ts = new Date(); ts.setHours(0,0,0,0);
+            const te = new Date(ts); te.setDate(te.getDate()+1);
             return allApts.filter(a => {
-                const firstSeen = new Date(a.first_seen).getTime();
-                const lastSeen = a.last_seen ? new Date(a.last_seen).getTime() : firstSeen;
-                return (firstSeen >= todayStart.getTime() && firstSeen < todayEnd.getTime()) ||
-                       (lastSeen >= todayStart.getTime() && lastSeen < todayEnd.getTime());
+                const fs = new Date(a.first_seen).getTime();
+                const ls = a.last_seen ? new Date(a.last_seen).getTime() : fs;
+                return (fs >= ts.getTime() && fs < te.getTime()) || (ls >= ts.getTime() && ls < te.getTime());
             });
         case 'removed':
             return removedApts.length ? removedApts : allApts.filter(a => a.is_active === 0);
@@ -277,7 +332,8 @@ function applyFilters() {
     if (sort === 'price-asc') apts.sort((a,b) => (a.price||0) - (b.price||0));
     else if (sort === 'price-desc') apts.sort((a,b) => (b.price||0) - (a.price||0));
     else apts.sort((a,b) => new Date(b.first_seen||0) - new Date(a.first_seen||0));
-    renderApts(apts);
+    filteredAptsCache = apts;
+    renderCurrentView();
 }
 
 function clearFilters() {
@@ -285,57 +341,150 @@ function clearFilters() {
     document.getElementById('f-min-price').value = '';
     document.getElementById('f-max-price').value = '';
     document.getElementById('f-sort').value = 'date';
+    tableColFilters = {};
     applyFilters();
+}
+
+function renderCurrentView() {
+    let apts = filteredAptsCache;
+    // Apply table column filters
+    if (viewMode === 'table') {
+        Object.entries(tableColFilters).forEach(([col, val]) => {
+            if (!val) return;
+            const v = val.toLowerCase();
+            apts = apts.filter(a => {
+                let cellVal = '';
+                switch(col) {
+                    case 'title': cellVal = a.title || ''; break;
+                    case 'address': cellVal = (a.street_address || a.location || ''); break;
+                    case 'rooms': cellVal = String(a.rooms || ''); break;
+                    case 'sqm': cellVal = String(a._sqm || a.sqm || ''); break;
+                    case 'floor': cellVal = String(a._floor != null ? a._floor : ''); break;
+                    case 'price': cellVal = String(a.price || ''); break;
+                    case 'info': cellVal = a.item_info || ''; break;
+                    case 'status': cellVal = a.is_active ? 'פעיל' : 'הוסר'; break;
+                    case 'date': cellVal = a.first_seen ? new Date(a.first_seen).toLocaleDateString('he-IL') : ''; break;
+                }
+                return cellVal.toLowerCase().includes(v);
+            });
+        });
+        // Apply table sort
+        apts = [...apts];
+        const dir = tableSortDir === 'asc' ? 1 : -1;
+        apts.sort((a, b) => {
+            let va, vb;
+            switch(tableSortCol) {
+                case 'price': va = a.price||0; vb = b.price||0; break;
+                case 'rooms': va = parseFloat(a.rooms)||0; vb = parseFloat(b.rooms)||0; break;
+                case 'sqm': va = a._sqm||0; vb = b._sqm||0; break;
+                case 'floor': va = a._floor!=null?a._floor:-1; vb = b._floor!=null?b._floor:-1; break;
+                case 'first_seen': va = new Date(a.first_seen||0).getTime(); vb = new Date(b.first_seen||0).getTime(); break;
+                default: va = (a[tableSortCol]||'').toString(); vb = (b[tableSortCol]||'').toString();
+                    return dir * va.localeCompare(vb, 'he');
+            }
+            return dir * ((va > vb) - (va < vb));
+        });
+    }
+
+    const totalPages = Math.max(1, Math.ceil(apts.length / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * pageSize;
+    const pageApts = apts.slice(start, start + pageSize);
+
+    document.getElementById('view-count').textContent = apts.length + ' דירות';
+
+    if (viewMode === 'table') {
+        renderTable(pageApts, apts.length);
+    } else {
+        renderCards(pageApts);
+    }
+    renderPagination(apts.length);
+}
+
+// Pagination
+function renderPagination(total) {
+    const pg = document.getElementById('pagination');
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (totalPages <= 1) { pg.classList.add('hidden'); return; }
+    pg.classList.remove('hidden');
+    document.getElementById('prev-page').disabled = currentPage <= 1;
+    document.getElementById('next-page').disabled = currentPage >= totalPages;
+    document.getElementById('page-size').value = pageSize;
+
+    // Page numbers
+    const pn = document.getElementById('page-numbers');
+    let pages = [];
+    const maxBtns = 7;
+    if (totalPages <= maxBtns) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+        pages.push(1);
+        let s = Math.max(2, currentPage - 2);
+        let e = Math.min(totalPages - 1, currentPage + 2);
+        if (s > 2) pages.push('...');
+        for (let i = s; i <= e; i++) pages.push(i);
+        if (e < totalPages - 1) pages.push('...');
+        pages.push(totalPages);
+    }
+    pn.innerHTML = pages.map(p => {
+        if (p === '...') return '<span class="px-2 text-gray-400">...</span>';
+        const active = p === currentPage ? 'bg-brand text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700';
+        return '<button onclick="goToPage(' + p + ')" class="w-9 h-9 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-lg ' + active + '">' + p + '</button>';
+    }).join('');
+}
+
+function changePage(delta) { goToPage(currentPage + delta); }
+function goToPage(p) {
+    const totalPages = Math.max(1, Math.ceil(filteredAptsCache.length / pageSize));
+    currentPage = Math.max(1, Math.min(p, totalPages));
+    renderCurrentView();
+    document.getElementById('apt-container').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function changePageSize() {
+    pageSize = parseInt(document.getElementById('page-size').value) || 50;
+    localStorage.setItem('pageSize', pageSize);
+    currentPage = 1;
+    renderCurrentView();
 }
 
 function roomColor(rooms) {
     if (!rooms) return null;
     const r = parseFloat(rooms);
-    if (r <= 1.5) return { bg: '#6b7280', text: '#fff' };     // gray
-    if (r <= 2)   return { bg: '#8b5cf6', text: '#fff' };     // purple
-    if (r <= 2.5) return { bg: '#a78bfa', text: '#fff' };     // light purple
-    if (r <= 3)   return { bg: '#3b82f6', text: '#fff' };     // blue
-    if (r <= 3.5) return { bg: '#06b6d4', text: '#fff' };     // cyan
-    if (r <= 4)   return { bg: '#10b981', text: '#fff' };     // green
-    if (r <= 4.5) return { bg: '#f59e0b', text: '#fff' };     // amber
-    if (r <= 5)   return { bg: '#ef4444', text: '#fff' };     // red
-    if (r <= 5.5) return { bg: '#ec4899', text: '#fff' };     // pink
-    return              { bg: '#dc2626', text: '#fff' };       // dark red 6+
+    if (r <= 1.5) return { bg: '#6b7280', text: '#fff' };
+    if (r <= 2)   return { bg: '#8b5cf6', text: '#fff' };
+    if (r <= 2.5) return { bg: '#a78bfa', text: '#fff' };
+    if (r <= 3)   return { bg: '#3b82f6', text: '#fff' };
+    if (r <= 3.5) return { bg: '#06b6d4', text: '#fff' };
+    if (r <= 4)   return { bg: '#10b981', text: '#fff' };
+    if (r <= 4.5) return { bg: '#f59e0b', text: '#fff' };
+    if (r <= 5)   return { bg: '#ef4444', text: '#fff' };
+    if (r <= 5.5) return { bg: '#ec4899', text: '#fff' };
+    return              { bg: '#dc2626', text: '#fff' };
 }
 
 function buildingViz(floor, totalFloors) {
     if (floor == null || floor < 0) return '';
     const total = Math.max(totalFloors || 9, floor + 1, 3);
     const maxShow = 12;
-    const W = 56; // building width
-    const FH = 12; // floor height
-    const GH = 14; // ground floor height
-    // Decide which floors to show vs collapse
+    const W = 56, FH = 12, GH = 14;
     let floorsToShow = [];
     if (total + 1 <= maxShow) {
         for (let f = total; f >= 0; f--) floorsToShow.push(f);
     } else {
         const keep = new Set();
-        keep.add(total); keep.add(total - 1);
-        keep.add(0); keep.add(1);
+        keep.add(total); keep.add(total - 1); keep.add(0); keep.add(1);
         for (let f = Math.max(0, floor - 1); f <= Math.min(total, floor + 1); f++) keep.add(f);
         const sorted = [...keep].sort((a, b) => b - a);
         for (let i = 0; i < sorted.length; i++) {
             floorsToShow.push(sorted[i]);
-            if (i < sorted.length - 1 && sorted[i] - sorted[i + 1] > 1) {
-                floorsToShow.push('dots');
-            }
+            if (i < sorted.length - 1 && sorted[i] - sorted[i + 1] > 1) floorsToShow.push('dots');
         }
     }
     let html = '<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;min-width:' + (W+30) + 'px" title="קומה ' + floor + ' מתוך ' + total + '">';
-    // Roof
     html += '<div style="width:0;height:0;border-left:' + (W/2) + 'px solid transparent;border-right:' + (W/2) + 'px solid transparent;border-bottom:10px solid #6b7280;margin-bottom:1px"></div>';
     for (const f of floorsToShow) {
         if (f === 'dots') {
-            html += '<div style="width:' + W + 'px;height:12px;display:flex;justify-content:center;align-items:center;gap:3px">' +
-                '<div style="width:4px;height:4px;background:#9ca3af;border-radius:50%"></div>' +
-                '<div style="width:4px;height:4px;background:#9ca3af;border-radius:50%"></div>' +
-                '<div style="width:4px;height:4px;background:#9ca3af;border-radius:50%"></div></div>';
+            html += '<div style="width:'+W+'px;height:12px;display:flex;justify-content:center;align-items:center;gap:3px"><div style="width:4px;height:4px;background:#9ca3af;border-radius:50%"></div><div style="width:4px;height:4px;background:#9ca3af;border-radius:50%"></div><div style="width:4px;height:4px;background:#9ca3af;border-radius:50%"></div></div>';
             continue;
         }
         const isTarget = f === floor;
@@ -345,33 +494,126 @@ function buildingViz(floor, totalFloors) {
         let inner = '';
         if (f > 0) {
             const wc = isTarget ? '#fff' : '#9ca3af';
-            inner = '<div style="display:flex;gap:3px;justify-content:center;align-items:center;height:100%">' +
-                '<div style="width:7px;height:6px;background:' + wc + ';border-radius:1px"></div>' +
-                '<div style="width:7px;height:6px;background:' + wc + ';border-radius:1px"></div>' +
-                '<div style="width:7px;height:6px;background:' + wc + ';border-radius:1px"></div></div>';
+            inner = '<div style="display:flex;gap:3px;justify-content:center;align-items:center;height:100%"><div style="width:7px;height:6px;background:'+wc+';border-radius:1px"></div><div style="width:7px;height:6px;background:'+wc+';border-radius:1px"></div><div style="width:7px;height:6px;background:'+wc+';border-radius:1px"></div></div>';
         } else {
             const dc = isTarget ? '#fff' : '#9ca3af';
-            inner = '<div style="display:flex;justify-content:center;align-items:end;height:100%">' +
-                '<div style="width:8px;height:8px;background:' + dc + ';border-radius:1px 1px 0 0"></div></div>';
+            inner = '<div style="display:flex;justify-content:center;align-items:end;height:100%"><div style="width:8px;height:8px;background:'+dc+';border-radius:1px 1px 0 0"></div></div>';
         }
-        const label = isTarget ? '<span style="position:absolute;right:-24px;top:50%;transform:translateY(-50%);font-size:9px;font-weight:bold;color:#667eea;line-height:1">◄ ' + floor + '</span>' : '';
-        html += '<div style="position:relative;width:' + W + 'px;height:' + h + 'px;' + bg + border + 'margin-bottom:-1px;border-radius:1px;">' + inner + label + '</div>';
+        const label = isTarget ? '<span style="position:absolute;right:-24px;top:50%;transform:translateY(-50%);font-size:9px;font-weight:bold;color:#667eea;line-height:1">◄ '+floor+'</span>' : '';
+        html += '<div style="position:relative;width:'+W+'px;height:'+h+'px;'+bg+border+'margin-bottom:-1px;border-radius:1px;">'+inner+label+'</div>';
     }
-    // Ground line
-    html += '<div style="width:' + (W+8) + 'px;height:2px;background:#6b7280;margin-top:1px"></div>';
-    html += '</div>';
+    html += '<div style="width:'+(W+8)+'px;height:2px;background:#6b7280;margin-top:1px"></div></div>';
     return html;
 }
 
-function renderApts(apts) {
-    const container = document.getElementById('apt-container');
-    document.getElementById('view-count').textContent = apts.length + ' דירות';
+// ===== TABLE VIEW =====
+function tableSort(col) {
+    if (tableSortCol === col) {
+        tableSortDir = tableSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        tableSortCol = col;
+        tableSortDir = (col === 'price' || col === 'rooms' || col === 'sqm' || col === 'floor') ? 'asc' : 'desc';
+    }
+    renderCurrentView();
+}
 
+function tableFilter(col, val) {
+    tableColFilters[col] = val;
+    currentPage = 1;
+    renderCurrentView();
+}
+
+function renderTable(apts, totalFiltered) {
+    const container = document.getElementById('apt-container');
     if (!apts.length) {
         container.innerHTML = '<div class="text-center py-16 text-gray-400"><div class="text-4xl mb-3">🤷</div><p>אין דירות להצגה</p></div>';
         return;
     }
+    const now = Date.now();
+    const twoDays = 48 * 60 * 60 * 1000;
+    const cols = [
+        {key:'status', label:'סטטוס', w:'70px'},
+        {key:'title', label:'כותרת', w:''},
+        {key:'address', label:'כתובת', w:''},
+        {key:'rooms', label:'🛏️ חדרים', w:'80px'},
+        {key:'sqm', label:'📐 מ"ר', w:'70px'},
+        {key:'floor', label:'🏢 קומה', w:'70px'},
+        {key:'price', label:'💰 מחיר', w:'100px'},
+        {key:'info', label:'ℹ️ פרטים', w:''},
+        {key:'date', label:'📅 תאריך', w:'90px'},
+        {key:'link', label:'קישור', w:'70px'}
+    ];
 
+    const sortIcon = (col) => {
+        const active = tableSortCol === col;
+        const arrow = active ? (tableSortDir === 'asc' ? '▲' : '▼') : '⇅';
+        return '<span class="sort-icon">' + arrow + '</span>';
+    };
+
+    let html = '<div class="table-wrapper bg-white dark:bg-gray-800 rounded-xl shadow"><table class="apt-table">';
+    // Header
+    html += '<thead class="bg-gray-50 dark:bg-gray-700"><tr>';
+    cols.forEach(c => {
+        const sortKey = c.key === 'address' ? 'street_address' : c.key === 'date' ? 'first_seen' : c.key;
+        const sorted = tableSortCol === sortKey ? ' sorted' : '';
+        const w = c.w ? 'width:'+c.w+';' : '';
+        const filterVal = tableColFilters[c.key] || '';
+        if (c.key === 'link') {
+            html += '<th style="'+w+'" class="'+sorted+'">' + esc(c.label) + '</th>';
+        } else {
+            html += '<th onclick="tableSort(\\''+sortKey+'\\')" style="'+w+'" class="'+sorted+'">' +
+                sortIcon(sortKey) + ' ' + esc(c.label) +
+                '<div><input class="col-filter" placeholder="סנן..." value="'+esc(filterVal)+'" ' +
+                'oninput="tableFilter(\\''+c.key+'\\', this.value)" onclick="event.stopPropagation()"></div></th>';
+        }
+    });
+    html += '</tr></thead><tbody>';
+
+    apts.forEach(apt => {
+        const isNew = (now - new Date(apt.first_seen).getTime()) < twoDays;
+        const isRemoved = apt.is_active === 0;
+        const price = apt.price ? '₪' + apt.price.toLocaleString() : '-';
+        const location = apt.street_address || apt.location || '';
+        const mapQuery = encodeURIComponent((location || apt.title || '') + ' Israel');
+        const floorNum = apt._floor;
+        const sqmVal = apt._sqm || apt.sqm || '';
+        const firstSeen = apt.first_seen ? new Date(apt.first_seen).toLocaleDateString('he-IL') : '';
+        const link = apt.link || '';
+
+        let statusBadge;
+        if (isRemoved) statusBadge = '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-400 text-white">הוסר</span>';
+        else if (isNew) statusBadge = '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-500 text-white">חדש</span>';
+        else statusBadge = '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">פעיל</span>';
+
+        const roomsBadge = apt.rooms ? (() => {
+            const rc = roomColor(apt.rooms);
+            return '<span style="background:'+rc.bg+';color:'+rc.text+';padding:1px 6px;border-radius:4px;font-weight:bold;font-size:12px">'+apt.rooms+'</span>';
+        })() : '-';
+
+        html += '<tr>' +
+            '<td>'+statusBadge+'</td>' +
+            '<td class="font-medium text-sm">'+esc(apt.title || '')+'</td>' +
+            '<td class="text-sm">' + (location ? esc(location) + ' <a href="https://www.google.com/maps/search/'+mapQuery+'" target="_blank" class="text-green-600 hover:text-green-800 text-xs">🗺️</a>' : '-') + '</td>' +
+            '<td class="text-center">'+roomsBadge+'</td>' +
+            '<td class="text-center">'+(sqmVal || '-')+'</td>' +
+            '<td class="text-center">'+(floorNum != null ? floorNum : '-')+'</td>' +
+            '<td class="font-bold text-brand text-sm whitespace-nowrap">'+price+'</td>' +
+            '<td class="text-xs text-gray-500 dark:text-gray-400" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(apt.item_info||'')+'">'+esc(apt.item_info || '-')+'</td>' +
+            '<td class="text-xs whitespace-nowrap">'+firstSeen+'</td>' +
+            '<td>'+(link ? '<a href="'+esc(link)+'" target="_blank" class="text-brand hover:underline text-xs font-medium">יד2</a>' : '-')+'</td>' +
+            '</tr>';
+    });
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+// ===== CARD VIEW =====
+function renderCards(apts) {
+    const container = document.getElementById('apt-container');
+    if (!apts.length) {
+        container.innerHTML = '<div class="text-center py-16 text-gray-400"><div class="text-4xl mb-3">🤷</div><p>אין דירות להצגה</p></div>';
+        return;
+    }
     const now = Date.now();
     const twoDays = 48 * 60 * 60 * 1000;
 
@@ -384,60 +626,33 @@ function renderApts(apts) {
         const info = esc(apt.item_info || '');
         const firstSeen = apt.first_seen ? new Date(apt.first_seen).toLocaleDateString('he-IL') : '';
         const link = esc(apt.link || '');
+        const floorNum = apt._floor;
+        const sqmVal = apt._sqm || apt.sqm;
 
         let badge = '';
         if (isRemoved) badge = '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-400 text-white mr-2">הוסר</span>';
         else if (isNew) badge = '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-500 text-white mr-2">חדש</span>';
 
-        // Get floor/sqm - search all text fields
-        // Strip RTL/LTR Unicode marks so \d+ works: \u200e \u200f etc.
-        const allText = Object.values(apt).filter(v => typeof v === 'string').join(' ')
-            .replace(/[\u200e\u200f\u200b\u200c\u200d\u202a-\u202e\u2066-\u2069]/g, '');
-        let floorNum = (apt.floor != null && apt.floor !== '') ? parseInt(apt.floor) : null;
-        if (floorNum == null || isNaN(floorNum)) {
-            floorNum = null;
-            const fm = allText.match(/קומה\s*(\d+)/);
-            if (fm) { floorNum = parseInt(fm[1]); }
-            else if (/קומת\s*קרקע|קומת\s*כניסה/.test(allText)) { floorNum = 0; }
-        }
-        let sqmVal = apt.sqm;
-        if (!sqmVal) {
-            const sm = allText.match(/(\d+)\s*(?:מ"ר|מ״ר)/);
-            if (sm) sqmVal = parseInt(sm[1]);
-        }
         const bldg = floorNum != null ? buildingViz(floorNum, null) : '';
 
-        return `
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow border-2 border-transparent hover:border-brand transition-all p-4">
-            <!-- Mobile: stacked, Desktop: row -->
-            <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-
-                <!-- Building visualization -->
-                ${bldg ? '<div class="flex items-center justify-center px-2">' + bldg + '</div>' : ''}
-
-                <!-- Info -->
-                <div class="flex-1 min-w-0">
-                    <div class="font-semibold text-sm sm:text-base">
-                        ${badge}${esc(apt.title) || 'ללא כותרת'}
-                    </div>
-                    ${location ? '<div class="font-bold text-sm sm:text-base mt-1 text-emerald-600 dark:text-emerald-400">📍 ' + location + ' <a href="https://www.google.com/maps/search/' + mapQuery + '" target="_blank" class="inline-block text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded px-1.5 py-0.5 mr-1 align-middle no-underline">🗺️ מפה</a></div>' : ''}
-                    <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-sm text-gray-600 dark:text-gray-300">
-                        ${apt.rooms ? (() => { const rc = roomColor(apt.rooms); return '<span style="background:' + rc.bg + ';color:' + rc.text + ';padding:2px 8px;border-radius:6px;font-weight:bold;font-size:14px">🛏️ ' + apt.rooms + ' חד\\'</span>'; })() : ''}
-                        ${sqmVal ? '<span>📐 ' + sqmVal + ' מ"ר</span>' : ''}
-                        ${floorNum != null ? '<span>🏢 קומה ' + floorNum + '</span>' : ''}
-                        ${firstSeen ? '<span>📅 ' + firstSeen + '</span>' : ''}
-                    </div>
-                    ${info ? '<div class="text-xs text-gray-400 dark:text-gray-500 mt-1">ℹ️ ' + info + '</div>' : ''}
-                </div>
-
-                <!-- Price + Link -->
-                <div class="flex items-center gap-3 sm:flex-shrink-0">
-                    <span class="text-lg sm:text-xl font-bold text-brand whitespace-nowrap">${price}</span>
-                    ${link ? '<a href="' + link + '" target="_blank" class="px-4 py-2 bg-brand text-white text-sm font-semibold rounded-lg hover:opacity-80 whitespace-nowrap">צפייה ביד2</a>' : ''}
-                </div>
-
-            </div>
-        </div>`;
+        return '<div class="bg-white dark:bg-gray-800 rounded-xl shadow border-2 border-transparent hover:border-brand transition-all p-4">' +
+            '<div class="flex flex-col sm:flex-row sm:items-center gap-3">' +
+            (bldg ? '<div class="flex items-center justify-center px-2">'+bldg+'</div>' : '') +
+            '<div class="flex-1 min-w-0">' +
+            '<div class="font-semibold text-sm sm:text-base">'+badge+esc(apt.title || 'ללא כותרת')+'</div>' +
+            (location ? '<div class="font-bold text-sm sm:text-base mt-1 text-emerald-600 dark:text-emerald-400">📍 '+location+' <a href="https://www.google.com/maps/search/'+mapQuery+'" target="_blank" class="inline-block text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded px-1.5 py-0.5 mr-1 align-middle no-underline">🗺️ מפה</a></div>' : '') +
+            '<div class="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-sm text-gray-600 dark:text-gray-300">' +
+            (apt.rooms ? (() => { const rc = roomColor(apt.rooms); return '<span style="background:'+rc.bg+';color:'+rc.text+';padding:2px 8px;border-radius:6px;font-weight:bold;font-size:14px">🛏️ '+apt.rooms+' חד\\'</span>'; })() : '') +
+            (sqmVal ? '<span>📐 '+sqmVal+' מ"ר</span>' : '') +
+            (floorNum != null ? '<span>🏢 קומה '+floorNum+'</span>' : '') +
+            (firstSeen ? '<span>📅 '+firstSeen+'</span>' : '') +
+            '</div>' +
+            (info ? '<div class="text-xs text-gray-400 dark:text-gray-500 mt-1">ℹ️ '+info+'</div>' : '') +
+            '</div>' +
+            '<div class="flex items-center gap-3 sm:flex-shrink-0">' +
+            '<span class="text-lg sm:text-xl font-bold text-brand whitespace-nowrap">'+price+'</span>' +
+            (link ? '<a href="'+link+'" target="_blank" class="px-4 py-2 bg-brand text-white text-sm font-semibold rounded-lg hover:opacity-80 whitespace-nowrap">צפייה ביד2</a>' : '') +
+            '</div></div></div>';
     }).join('') + '</div>';
 }
 
@@ -446,6 +661,9 @@ if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') 
     document.documentElement.classList.add('dark');
     document.getElementById('theme-btn').textContent = '☀️';
 }
+
+// Init view mode
+if (viewMode === 'table') setViewMode('table');
 
 loadAll();
 setInterval(loadAll, 300000);
