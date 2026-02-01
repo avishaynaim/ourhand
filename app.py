@@ -628,24 +628,31 @@ class Yad2Monitor:
 
             # Collect results and track failures
             pages_with_data = 0
+            pages_ok_but_empty = 0
+            batch_failed = 0
             for page_num, apts, status in results:
                 if status == 'ok' and apts:
                     batch_apartments.extend(apts)
                     pages_with_data += 1
                     total_pages_ok += 1
-                elif status != 'ok':
+                elif status == 'ok' and not apts:
+                    # Truly empty page (fetched OK but no apartments)
+                    pages_ok_but_empty += 1
+                    total_pages_ok += 1
+                else:
+                    # Failed page - don't count as empty
                     failed_pages.append(page_num)
                     total_pages_failed += 1
-                else:
-                    total_pages_ok += 1  # OK but empty
+                    batch_failed += 1
 
             pending_apartments.extend(batch_apartments)
 
-            # Check for end of data
-            if pages_with_data == 0:
+            # Only stop if ALL pages in batch were OK but empty (truly end of data)
+            # Don't stop if pages failed - that's rate limiting, not end of data
+            if pages_ok_but_empty == len(batch_pages) and batch_failed == 0:
                 consecutive_empty_batches += 1
-                if consecutive_empty_batches >= 2:
-                    logger.info(f"🛑 2 consecutive empty batches - reached end at page {page}")
+                if consecutive_empty_batches >= 3:  # Increased to 3 for safety
+                    logger.info(f"🛑 3 consecutive truly empty batches - reached end at page {page}")
                     break
             else:
                 consecutive_empty_batches = 0
@@ -664,7 +671,10 @@ class Yad2Monitor:
             elapsed = (datetime.now() - start_time).total_seconds() / 60
             total_found = total_saved + len(pending_apartments)
             rate = total_found / max(elapsed, 0.1)
-            logger.info(f"📊 Pages {batch_pages[0]}-{batch_pages[-1]}: +{len(batch_apartments)} | Found: {total_found} | Saved: {total_saved} | OK:{total_pages_ok} Fail:{total_pages_failed} | {elapsed:.1f}min")
+            status_info = f"OK:{total_pages_ok} Fail:{total_pages_failed}"
+            if batch_failed > 0:
+                status_info += f" (batch: {batch_failed} failed)"
+            logger.info(f"📊 Pages {batch_pages[0]}-{batch_pages[-1]}: +{len(batch_apartments)} | Found: {total_found} | Saved: {total_saved} | {status_info} | {elapsed:.1f}min")
 
             page += BATCH_SIZE
 
