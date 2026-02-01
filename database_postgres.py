@@ -93,6 +93,40 @@ class PostgreSQLDatabase:
                 cursor.execute("ALTER TABLE apartments ADD COLUMN apartment_type TEXT")
                 logger.info("✅ Added apartment_type column to apartments table")
 
+            # Backfill apartment_type, neighborhood, city from item_info
+            cursor.execute("""
+                SELECT COUNT(*) FROM apartments
+                WHERE item_info IS NOT NULL AND item_info != ''
+                AND (apartment_type IS NULL AND city IS NULL)
+            """)
+            backfill_count = cursor.fetchone()[0]
+            if backfill_count > 0:
+                logger.info(f"🔄 Backfilling {backfill_count} apartments from item_info...")
+                cursor.execute("""
+                    SELECT id, item_info FROM apartments
+                    WHERE item_info IS NOT NULL AND item_info != ''
+                    AND (apartment_type IS NULL AND city IS NULL)
+                """)
+                rows = cursor.fetchall()
+                for row in rows:
+                    apt_id, item_info = row[0], row[1]
+                    parts = [p.strip() for p in item_info.split(',') if p.strip()]
+                    apt_type = city = neighborhood = None
+                    if len(parts) >= 3:
+                        apt_type = parts[0]
+                        city = parts[-1]
+                        neighborhood = ', '.join(parts[1:-1])
+                    elif len(parts) == 2:
+                        apt_type = parts[0]
+                        city = parts[1]
+                    elif len(parts) == 1:
+                        apt_type = parts[0]
+                    cursor.execute("""
+                        UPDATE apartments SET apartment_type = %s, neighborhood = %s, city = %s
+                        WHERE id = %s
+                    """, (apt_type, neighborhood, city, apt_id))
+                logger.info(f"✅ Backfilled {len(rows)} apartments with type/neighborhood/city")
+
             # Price history table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS price_history (
