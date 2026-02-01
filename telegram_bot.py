@@ -222,7 +222,8 @@ class TelegramBot:
         name = user.get('first_name', 'משתמש') if user else 'משתמש'
 
         text = f"""
-🏠 <b>ברוך הבא ל-Yad2 Monitor, {name}!</b>
+🏠 <b>ברוך הבא ל-OurHand Monitor, {name}!</b>
+🇮🇱 <b>מנטר כל דירות להשכרה בישראל!</b>
 
 אני אעזור לך למצוא את הדירה המושלמת ביד2.
 אקבל עדכונים על דירות חדשות, שינויי מחיר ועוד.
@@ -248,7 +249,8 @@ class TelegramBot:
     def cmd_help(self, chat_id: str, args: List[str]):
         """Handle /help command"""
         text = """
-📖 <b>מדריך שימוש - Yad2 Monitor</b>
+📖 <b>מדריך שימוש - OurHand Monitor</b>
+🇮🇱 <b>מנטר כל דירות להשכרה בישראל</b>
 
 <b>פקודות בסיסיות:</b>
 /start - התחלה והרשמה
@@ -355,7 +357,8 @@ class TelegramBot:
             max_price = max(prices) if prices else 0
 
             text = f"""
-📊 <b>סטטיסטיקות שוק - Yad2</b>
+📊 <b>סטטיסטיקות שוק - OurHand</b>
+🇮🇱 <b>כל ישראל</b>
 
 <b>🏢 דירות במעקב:</b>
 • סה"כ דירות פעילות: {total:,}

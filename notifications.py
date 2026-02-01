@@ -26,11 +26,11 @@ class NotificationManager:
         self.telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN')
         self.telegram_chat_id = os.environ.get('TELEGRAM_CHAT_ID')
 
-        # Server identification
+        # Server identification (default to OurHand for this project)
         self.server_name = os.environ.get('SERVER_NAME') or \
                           os.environ.get('RAILWAY_SERVICE_NAME') or \
                           os.environ.get('RAILWAY_PROJECT_NAME') or \
-                          'Yad2-Monitor'
+                          'OurHand-Monitor'
 
         self.notification_queue: List[Dict] = []
         self.daily_notifications: List[Dict] = []  # Collected for daily digest
@@ -166,7 +166,7 @@ class NotificationManager:
     def format_daily_digest(self, new_apartments: List[Dict], price_changes: List[Dict],
                            removed: List[Dict]) -> str:
         """Format daily digest message"""
-        message = "📬 <b>סיכום יומי - Yad2 Monitor</b>\n"
+        message = "📬 <b>סיכום יומי - OurHand Monitor</b>\n"
         message += "─" * 30 + "\n\n"
 
         # Summary counts
@@ -432,7 +432,7 @@ class NotificationManager:
         success_rate = (success / total * 100) if total > 0 else 0
 
         message = (
-            f"📊 <b>סטטוס Monitor</b>\n"
+            f"📊 <b>סטטוס OurHand Monitor</b>\n"
             f"{'─' * 25}\n\n"
             f"📈 <b>24 שעות אחרונות:</b>\n"
             f"  ✅ הצלחות: {success}\n"
@@ -450,7 +450,7 @@ class NotificationManager:
     def send_error_alert(self, error: str, context: str = None):
         """Send error alert"""
         message = (
-            f"❌ <b>שגיאה ב-Yad2 Monitor</b>\n"
+            f"❌ <b>שגיאה ב-OurHand Monitor</b>\n"
             f"{'─' * 25}\n\n"
             f"<code>{error}</code>"
         )
@@ -465,14 +465,18 @@ class NotificationManager:
     def send_startup_message(self, config: Dict = None):
         """Send startup notification"""
         message = (
-            f"🤖 <b>Yad2 Monitor הופעל!</b>\n"
+            f"🤖 <b>OurHand Monitor הופעל!</b>\n"
+            f"🇮🇱 <b>מנטר כל דירות להשכרה בישראל</b>\n"
             f"{'─' * 25}\n\n"
             f"🔄 <b>מערכת אדפטיבית:</b> פעילה\n"
             f"🧠 <b>עצירה חכמה:</b> פעילה\n"
         )
 
         if config:
-            message += f"⏱️ <b>מרווח:</b> {config.get('min_interval', 60)}-{config.get('max_interval', 90)} דקות\n"
+            message += f"⏱️ <b>מרווח:</b> {config.get('min_interval', 20)}-{config.get('max_interval', 40)} דקות\n"
+            if config.get('initial_scrape'):
+                message += f"\n⚠️ <b>סריקה ראשונית:</b> סורק 700+ עמודים (~29K דירות)\n"
+                message += f"⏳ זה עשוי לקחת 30-60 דקות...\n"
 
         message += f"\n🔍 <b>סטטוס:</b> מנטר..."
         message += self.get_server_signature()
