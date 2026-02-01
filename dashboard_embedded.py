@@ -203,6 +203,7 @@ function setViewMode(mode) {
         bc.className = 'px-3 py-1.5 text-sm font-medium bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600';
     }
     currentPage = 1;
+    document.getElementById('apt-container').innerHTML = '';
     renderCurrentView();
 }
 
@@ -272,6 +273,8 @@ function updateStats() {
 function filterBy(type) {
     currentFilter = type;
     currentPage = 1;
+    // Reset table so header rebuilds for new data set
+    document.getElementById('apt-container').innerHTML = '';
     document.querySelectorAll('.stat-card').forEach(s => {
         s.classList.remove('border-brand', 'bg-indigo-50', 'dark:bg-indigo-900/20');
         s.classList.add('border-transparent');
@@ -347,59 +350,26 @@ function clearFilters() {
 }
 
 function renderCurrentView() {
-    let apts = filteredAptsCache;
-    // Apply table column filters
     if (viewMode === 'table') {
-        Object.entries(tableColFilters).forEach(([col, val]) => {
-            if (!val) return;
-            const v = val.toLowerCase();
-            apts = apts.filter(a => {
-                let cellVal = '';
-                switch(col) {
-                    case 'title': cellVal = a.title || ''; break;
-                    case 'address': cellVal = (a.street_address || a.location || ''); break;
-                    case 'rooms': cellVal = String(a.rooms || ''); break;
-                    case 'sqm': cellVal = String(a._sqm || a.sqm || ''); break;
-                    case 'floor': cellVal = String(a._floor != null ? a._floor : ''); break;
-                    case 'price': cellVal = String(a.price || ''); break;
-                    case 'info': cellVal = a.item_info || ''; break;
-                    case 'status': cellVal = a.is_active ? 'פעיל' : 'הוסר'; break;
-                    case 'date': cellVal = a.first_seen ? new Date(a.first_seen).toLocaleDateString('he-IL') : ''; break;
-                }
-                return cellVal.toLowerCase().includes(v);
-            });
-        });
-        // Apply table sort
-        apts = [...apts];
-        const dir = tableSortDir === 'asc' ? 1 : -1;
-        apts.sort((a, b) => {
-            let va, vb;
-            switch(tableSortCol) {
-                case 'price': va = a.price||0; vb = b.price||0; break;
-                case 'rooms': va = parseFloat(a.rooms)||0; vb = parseFloat(b.rooms)||0; break;
-                case 'sqm': va = a._sqm||0; vb = b._sqm||0; break;
-                case 'floor': va = a._floor!=null?a._floor:-1; vb = b._floor!=null?b._floor:-1; break;
-                case 'first_seen': va = new Date(a.first_seen||0).getTime(); vb = new Date(b.first_seen||0).getTime(); break;
-                default: va = (a[tableSortCol]||'').toString(); vb = (b[tableSortCol]||'').toString();
-                    return dir * va.localeCompare(vb, 'he');
-            }
-            return dir * ((va > vb) - (va < vb));
-        });
-    }
-
-    const totalPages = Math.max(1, Math.ceil(apts.length / pageSize));
-    if (currentPage > totalPages) currentPage = totalPages;
-    const start = (currentPage - 1) * pageSize;
-    const pageApts = apts.slice(start, start + pageSize);
-
-    document.getElementById('view-count').textContent = apts.length + ' דירות';
-
-    if (viewMode === 'table') {
-        renderTable(pageApts, apts.length);
+        // Table: header stays, only body updates
+        renderTable();
+        const total = getTableFilteredCount();
+        document.getElementById('view-count').textContent = total + ' דירות';
+        renderPagination(total);
     } else {
+        // Cards: paginate from filteredAptsCache
+        const apts = filteredAptsCache;
+        const totalPages = Math.max(1, Math.ceil(apts.length / pageSize));
+        if (currentPage > totalPages) currentPage = totalPages;
+        const start = (currentPage - 1) * pageSize;
+        const pageApts = apts.slice(start, start + pageSize);
+        document.getElementById('view-count').textContent = apts.length + ' דירות';
+        // Clear table structure if switching from table
+        const container = document.getElementById('apt-container');
+        if (container.querySelector('.apt-table')) container.innerHTML = '';
         renderCards(pageApts);
+        renderPagination(apts.length);
     }
-    renderPagination(apts.length);
 }
 
 // Pagination
@@ -436,16 +406,28 @@ function renderPagination(total) {
 
 function changePage(delta) { goToPage(currentPage + delta); }
 function goToPage(p) {
-    const totalPages = Math.max(1, Math.ceil(filteredAptsCache.length / pageSize));
+    const total = viewMode === 'table' ? getTableFilteredCount() : filteredAptsCache.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
     currentPage = Math.max(1, Math.min(p, totalPages));
-    renderCurrentView();
+    if (viewMode === 'table') {
+        renderTableBody();
+        renderPagination(total);
+    } else {
+        renderCurrentView();
+    }
     document.getElementById('apt-container').scrollIntoView({behavior:'smooth', block:'start'});
 }
 function changePageSize() {
     pageSize = parseInt(document.getElementById('page-size').value) || 50;
     localStorage.setItem('pageSize', pageSize);
     currentPage = 1;
-    renderCurrentView();
+    if (viewMode === 'table') {
+        const total = getTableFilteredCount();
+        renderTableBody();
+        renderPagination(total);
+    } else {
+        renderCurrentView();
+    }
 }
 
 function roomColor(rooms) {
@@ -508,6 +490,15 @@ function buildingViz(floor, totalFloors) {
 }
 
 // ===== TABLE VIEW =====
+let tableHeaderBuilt = false;
+let uniqueRooms = [];
+
+function buildRoomOptions() {
+    const rooms = new Set();
+    allApts.forEach(a => { if (a.rooms) rooms.add(parseFloat(a.rooms)); });
+    uniqueRooms = [...rooms].sort((a,b) => a - b);
+}
+
 function tableSort(col) {
     if (tableSortCol === col) {
         tableSortDir = tableSortDir === 'asc' ? 'desc' : 'asc';
@@ -515,61 +506,185 @@ function tableSort(col) {
         tableSortCol = col;
         tableSortDir = (col === 'price' || col === 'rooms' || col === 'sqm' || col === 'floor') ? 'asc' : 'desc';
     }
-    renderCurrentView();
+    updateSortIcons();
+    renderTableBody();
+    renderPagination(getTableFilteredCount());
 }
 
-function tableFilter(col, val) {
-    tableColFilters[col] = val;
+function updateSortIcons() {
+    document.querySelectorAll('.apt-table th').forEach(th => {
+        const col = th.dataset.sortCol;
+        if (!col) return;
+        const icon = th.querySelector('.sort-icon');
+        if (!icon) return;
+        if (tableSortCol === col) {
+            th.classList.add('sorted');
+            icon.textContent = tableSortDir === 'asc' ? '▲' : '▼';
+        } else {
+            th.classList.remove('sorted');
+            icon.textContent = '⇅';
+        }
+    });
+}
+
+function tableFilterChanged() {
+    // Read all filter values from the DOM
+    const rf = document.getElementById('tf-rooms');
+    if (rf) tableColFilters.rooms = rf.value;
+    ['title','address','info','date'].forEach(k => {
+        const el = document.getElementById('tf-'+k);
+        if (el) tableColFilters[k] = el.value;
+    });
+    ['price','sqm','floor'].forEach(k => {
+        const mn = document.getElementById('tf-'+k+'-min');
+        const mx = document.getElementById('tf-'+k+'-max');
+        if (mn) tableColFilters[k+'_min'] = mn.value;
+        if (mx) tableColFilters[k+'_max'] = mx.value;
+    });
+    const sf = document.getElementById('tf-status');
+    if (sf) tableColFilters.status = sf.value;
     currentPage = 1;
-    renderCurrentView();
+    renderTableBody();
+    renderPagination(getTableFilteredCount());
+    document.getElementById('view-count').textContent = getTableFilteredCount() + ' דירות';
 }
 
-function renderTable(apts, totalFiltered) {
+function getTableFiltered() {
+    let apts = filteredAptsCache;
+    // Text filters
+    ['title','address','info','date'].forEach(k => {
+        const v = (tableColFilters[k] || '').trim().toLowerCase();
+        if (!v) return;
+        apts = apts.filter(a => {
+            let val = '';
+            switch(k) {
+                case 'title': val = a.title || ''; break;
+                case 'address': val = (a.street_address || a.location || ''); break;
+                case 'info': val = a.item_info || ''; break;
+                case 'date': val = a.first_seen ? new Date(a.first_seen).toLocaleDateString('he-IL') : ''; break;
+            }
+            return val.toLowerCase().includes(v);
+        });
+    });
+    // Rooms dropdown
+    const rv = tableColFilters.rooms || '';
+    if (rv) {
+        const rn = parseFloat(rv);
+        apts = apts.filter(a => parseFloat(a.rooms) === rn);
+    }
+    // Status dropdown
+    const sv = tableColFilters.status || '';
+    if (sv === 'active') apts = apts.filter(a => a.is_active !== 0);
+    else if (sv === 'removed') apts = apts.filter(a => a.is_active === 0);
+    else if (sv === 'new') {
+        const now = Date.now(); const td = 48*60*60*1000;
+        apts = apts.filter(a => a.is_active !== 0 && (now - new Date(a.first_seen).getTime()) < td);
+    }
+    // Range filters: price, sqm, floor
+    ['price','sqm','floor'].forEach(k => {
+        const mn = parseFloat(tableColFilters[k+'_min']) || -Infinity;
+        const mx = parseFloat(tableColFilters[k+'_max']) || Infinity;
+        if (mn === -Infinity && mx === Infinity) return;
+        apts = apts.filter(a => {
+            let v;
+            switch(k) {
+                case 'price': v = a.price; break;
+                case 'sqm': v = a._sqm || a.sqm; break;
+                case 'floor': v = a._floor; break;
+            }
+            if (v == null) return false;
+            return v >= mn && v <= mx;
+        });
+    });
+    // Sort
+    apts = [...apts];
+    const dir = tableSortDir === 'asc' ? 1 : -1;
+    apts.sort((a, b) => {
+        let va, vb;
+        switch(tableSortCol) {
+            case 'price': va = a.price||0; vb = b.price||0; break;
+            case 'rooms': va = parseFloat(a.rooms)||0; vb = parseFloat(b.rooms)||0; break;
+            case 'sqm': va = a._sqm||0; vb = b._sqm||0; break;
+            case 'floor': va = a._floor!=null?a._floor:-1; vb = b._floor!=null?b._floor:-1; break;
+            case 'first_seen': va = new Date(a.first_seen||0).getTime(); vb = new Date(b.first_seen||0).getTime(); break;
+            default: va = (a[tableSortCol]||'').toString(); vb = (b[tableSortCol]||'').toString();
+                return dir * va.localeCompare(vb, 'he');
+        }
+        return dir * ((va > vb) - (va < vb));
+    });
+    return apts;
+}
+
+function getTableFilteredCount() {
+    return getTableFiltered().length;
+}
+
+function ensureTableStructure() {
     const container = document.getElementById('apt-container');
+    if (container.querySelector('.apt-table')) return; // already built
+    if (!uniqueRooms.length) buildRoomOptions();
+    const cols = [
+        {key:'status', sortKey:'status', label:'סטטוס', w:'80px', filter:'status'},
+        {key:'title', sortKey:'title', label:'כותרת', w:'', filter:'text'},
+        {key:'address', sortKey:'street_address', label:'כתובת', w:'', filter:'text'},
+        {key:'rooms', sortKey:'rooms', label:'🛏️ חדרים', w:'100px', filter:'rooms'},
+        {key:'sqm', sortKey:'sqm', label:'📐 מ"ר', w:'110px', filter:'range'},
+        {key:'floor', sortKey:'floor', label:'🏢 קומה', w:'110px', filter:'range'},
+        {key:'price', sortKey:'price', label:'💰 מחיר', w:'140px', filter:'range'},
+        {key:'info', sortKey:'info', label:'ℹ️ פרטים', w:'', filter:'text'},
+        {key:'date', sortKey:'first_seen', label:'📅 תאריך', w:'100px', filter:'text'},
+        {key:'link', sortKey:'', label:'קישור', w:'60px', filter:'none'}
+    ];
+    let html = '<div class="table-wrapper bg-white dark:bg-gray-800 rounded-xl shadow"><table class="apt-table">';
+    html += '<thead class="bg-gray-50 dark:bg-gray-700"><tr>';
+    cols.forEach(c => {
+        const w = c.w ? 'width:'+c.w+';' : '';
+        const sorted = tableSortCol === c.sortKey ? ' sorted' : '';
+        const sortIcon = tableSortCol === c.sortKey ? (tableSortDir === 'asc' ? '▲' : '▼') : '⇅';
+        const sortClick = c.sortKey ? ' onclick="tableSort(\\''+c.sortKey+'\\')" data-sort-col="'+c.sortKey+'"' : '';
+        let filterHtml = '';
+        if (c.filter === 'text') {
+            filterHtml = '<div><input class="col-filter" id="tf-'+c.key+'" placeholder="סנן..." ' +
+                'oninput="tableFilterChanged()" onclick="event.stopPropagation()"></div>';
+        } else if (c.filter === 'rooms') {
+            filterHtml = '<div><select class="col-filter" id="tf-rooms" onchange="tableFilterChanged()" onclick="event.stopPropagation()">' +
+                '<option value="">הכל</option>' +
+                uniqueRooms.map(r => '<option value="'+r+'">'+r+' חד\\'</option>').join('') +
+                '</select></div>';
+        } else if (c.filter === 'range') {
+            filterHtml = '<div style="display:flex;gap:2px;margin-top:4px" onclick="event.stopPropagation()">' +
+                '<input type="number" class="col-filter" id="tf-'+c.key+'-min" placeholder="מ-" style="width:48%" oninput="tableFilterChanged()">' +
+                '<input type="number" class="col-filter" id="tf-'+c.key+'-max" placeholder="עד" style="width:48%" oninput="tableFilterChanged()">' +
+                '</div>';
+        } else if (c.filter === 'status') {
+            filterHtml = '<div><select class="col-filter" id="tf-status" onchange="tableFilterChanged()" onclick="event.stopPropagation()">' +
+                '<option value="">הכל</option><option value="active">פעיל</option><option value="new">חדש</option><option value="removed">הוסר</option>' +
+                '</select></div>';
+        }
+        html += '<th'+sortClick+' style="'+w+'" class="'+sorted+'">' +
+            (c.sortKey ? '<span class="sort-icon">'+sortIcon+'</span> ' : '') +
+            esc(c.label) + filterHtml + '</th>';
+    });
+    html += '</tr></thead><tbody id="table-body"></tbody></table></div>';
+    container.innerHTML = html;
+}
+
+function renderTableBody() {
+    const allFiltered = getTableFiltered();
+    const totalPages = Math.max(1, Math.ceil(allFiltered.length / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * pageSize;
+    const apts = allFiltered.slice(start, start + pageSize);
+    const tbody = document.getElementById('table-body');
+    if (!tbody) return;
+
     if (!apts.length) {
-        container.innerHTML = '<div class="text-center py-16 text-gray-400"><div class="text-4xl mb-3">🤷</div><p>אין דירות להצגה</p></div>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8 text-gray-400">🤷 אין דירות להצגה</td></tr>';
         return;
     }
     const now = Date.now();
     const twoDays = 48 * 60 * 60 * 1000;
-    const cols = [
-        {key:'status', label:'סטטוס', w:'70px'},
-        {key:'title', label:'כותרת', w:''},
-        {key:'address', label:'כתובת', w:''},
-        {key:'rooms', label:'🛏️ חדרים', w:'80px'},
-        {key:'sqm', label:'📐 מ"ר', w:'70px'},
-        {key:'floor', label:'🏢 קומה', w:'70px'},
-        {key:'price', label:'💰 מחיר', w:'100px'},
-        {key:'info', label:'ℹ️ פרטים', w:''},
-        {key:'date', label:'📅 תאריך', w:'90px'},
-        {key:'link', label:'קישור', w:'70px'}
-    ];
-
-    const sortIcon = (col) => {
-        const active = tableSortCol === col;
-        const arrow = active ? (tableSortDir === 'asc' ? '▲' : '▼') : '⇅';
-        return '<span class="sort-icon">' + arrow + '</span>';
-    };
-
-    let html = '<div class="table-wrapper bg-white dark:bg-gray-800 rounded-xl shadow"><table class="apt-table">';
-    // Header
-    html += '<thead class="bg-gray-50 dark:bg-gray-700"><tr>';
-    cols.forEach(c => {
-        const sortKey = c.key === 'address' ? 'street_address' : c.key === 'date' ? 'first_seen' : c.key;
-        const sorted = tableSortCol === sortKey ? ' sorted' : '';
-        const w = c.w ? 'width:'+c.w+';' : '';
-        const filterVal = tableColFilters[c.key] || '';
-        if (c.key === 'link') {
-            html += '<th style="'+w+'" class="'+sorted+'">' + esc(c.label) + '</th>';
-        } else {
-            html += '<th onclick="tableSort(\\''+sortKey+'\\')" style="'+w+'" class="'+sorted+'">' +
-                sortIcon(sortKey) + ' ' + esc(c.label) +
-                '<div><input class="col-filter" placeholder="סנן..." value="'+esc(filterVal)+'" ' +
-                'oninput="tableFilter(\\''+c.key+'\\', this.value)" onclick="event.stopPropagation()"></div></th>';
-        }
-    });
-    html += '</tr></thead><tbody>';
-
+    let html = '';
     apts.forEach(apt => {
         const isNew = (now - new Date(apt.first_seen).getTime()) < twoDays;
         const isRemoved = apt.is_active === 0;
@@ -604,8 +719,12 @@ function renderTable(apts, totalFiltered) {
             '<td>'+(link ? '<a href="'+esc(link)+'" target="_blank" class="text-brand hover:underline text-xs font-medium">יד2</a>' : '-')+'</td>' +
             '</tr>';
     });
-    html += '</tbody></table></div>';
-    container.innerHTML = html;
+    tbody.innerHTML = html;
+}
+
+function renderTable() {
+    ensureTableStructure();
+    renderTableBody();
 }
 
 // ===== CARD VIEW =====

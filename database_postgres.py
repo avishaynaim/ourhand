@@ -442,7 +442,7 @@ class PostgreSQLDatabase:
             row = cursor.fetchone()
             return dict(row) if row else None
 
-    def get_all_apartments(self, active_only: bool = True, limit: int = 10000) -> List[Dict]:
+    def get_all_apartments(self, active_only: bool = True, limit: int = 100000) -> List[Dict]:
         """Get all apartments with optional limit to prevent memory issues"""
         with self.get_connection() as conn:
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
