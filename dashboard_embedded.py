@@ -143,6 +143,12 @@ def get_dashboard_html():
             <div class="text-xl sm:text-2xl font-bold text-brand" id="v-avg">-</div>
             <div class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">מחיר ממוצע</div>
         </button>
+        <button onclick="filterBy('avg')" id="stat-median"
+            class="stat-card bg-white dark:bg-gray-800 rounded-xl shadow p-4 text-center border-2 border-transparent hover:border-brand hover:shadow-lg transition-all col-span-2 sm:col-span-1">
+            <div class="text-2xl mb-1">📊</div>
+            <div class="text-xl sm:text-2xl font-bold text-brand" id="v-median">-</div>
+            <div class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">חציון מחיר</div>
+        </button>
     </div>
 
     <!-- Filter Bar -->
@@ -312,6 +318,15 @@ function updateStats() {
     const newApts = activeApts.filter(a => (now - new Date(a.first_seen).getTime()) < twoDays);
     const prices = activeApts.map(a => a.price).filter(p => p > 0);
     const avg = prices.length ? Math.round(prices.reduce((a,b) => a+b, 0) / prices.length) : 0;
+
+    // Calculate median
+    let median = 0;
+    if (prices.length) {
+        const sorted = [...prices].sort((a,b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        median = sorted.length % 2 === 0 ? Math.round((sorted[mid-1] + sorted[mid]) / 2) : sorted[mid];
+    }
+
     const todayStart = new Date(); todayStart.setHours(0,0,0,0);
     const todayEnd = new Date(todayStart); todayEnd.setDate(todayEnd.getDate()+1);
     const todayApts = allApts.filter(a => {
@@ -326,6 +341,7 @@ function updateStats() {
     document.getElementById('v-drops').textContent = healthData?.today?.price_drops || 0;
     document.getElementById('v-removed').textContent = removedApts.length;
     document.getElementById('v-avg').textContent = avg ? avg.toLocaleString() + ' ₪' : '-';
+    document.getElementById('v-median').textContent = median ? median.toLocaleString() + ' ₪' : '-';
 }
 
 function filterBy(type) {

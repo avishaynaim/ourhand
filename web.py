@@ -712,6 +712,16 @@ def create_web_app(database, analytics=None, telegram_bot=None):
         apartments = db.get_all_apartments() if db else []
         prices = [a['price'] for a in apartments if a.get('price')]
 
+        # Calculate median price
+        median_price = 0
+        if prices:
+            sorted_prices = sorted(prices)
+            n = len(sorted_prices)
+            if n % 2 == 0:
+                median_price = (sorted_prices[n//2 - 1] + sorted_prices[n//2]) // 2
+            else:
+                median_price = sorted_prices[n//2]
+
         # Calculate apartments from last 2 days (48 hours)
         # Using data_updated_at which is the update timestamp from Yad2 website (not DB timestamp)
         from datetime import timedelta
@@ -764,6 +774,7 @@ def create_web_app(database, analytics=None, telegram_bot=None):
             'listings': {
                 'total_active': len(apartments),
                 'avg_price': sum(prices) // len(prices) if prices else 0,
+                'median_price': median_price,
                 'min_price': min(prices) if prices else 0,
                 'max_price': max(prices) if prices else 0,
                 'favorites': len(favorites)

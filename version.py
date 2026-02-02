@@ -2,9 +2,10 @@
 Version information for OurHand Monitor
 """
 
-__version__ = "1.3.2"
+__version__ = "1.4.0"
 
 # Version History:
+# 1.4.0 - 2026-02-02: Add median price statistic to dashboard
 # 1.3.2 - 2026-02-02: Fix tooltip cutoff - position to right side instead of below
 # 1.3.1 - 2026-02-02: Fix price drops count to match filter (data consistency)
 # 1.3.0 - 2026-02-02: Major UX improvements: graph in tooltip, better icons, loading state
