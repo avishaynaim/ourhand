@@ -732,6 +732,20 @@ def create_web_app(database, analytics=None, telegram_bot=None):
         # Get daily summary for other stats
         daily_summary = db.get_daily_summary() if db else None
 
+        # Calculate actual price drops from price history (consistent with frontend filter)
+        actual_price_drops = 0
+        if db:
+            try:
+                all_histories = db.get_all_price_histories()
+                for apt_id, hist in all_histories.items():
+                    if len(hist) >= 2:
+                        first_price = hist[0]['price']
+                        last_price = hist[-1]['price']
+                        if last_price < first_price:
+                            actual_price_drops += 1
+            except Exception as e:
+                logger.warning(f"Failed to calculate price drops: {e}")
+
         # Get scrape stats
         scrape_stats = db.get_scrape_stats(hours=24) if db else {}
 
@@ -756,7 +770,7 @@ def create_web_app(database, analytics=None, telegram_bot=None):
             },
             'today': {
                 'new_apartments': new_apartments_last_2_days,  # Last 2 days instead of today
-                'price_drops': daily_summary.get('price_drops', 0) if daily_summary else 0,
+                'price_drops': actual_price_drops,  # Use actual count from price_history (consistent with filter)
                 'price_increases': daily_summary.get('price_increases', 0) if daily_summary else 0,
                 'removed': daily_summary.get('removed', 0) if daily_summary else 0
             },
