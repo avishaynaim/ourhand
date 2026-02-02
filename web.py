@@ -1104,6 +1104,72 @@ def create_web_app(database, analytics=None, telegram_bot=None):
             logger.error(f"Error adding filter: {e}", exc_info=True)
             return jsonify({'error': 'Failed to add filter'}), 500
 
+    @app.route('/api/filter-presets', methods=['GET'])
+    @require_api_key
+    def get_filter_presets():
+        """Get all saved filter presets"""
+        try:
+            presets = db.get_filter_presets()
+            return jsonify({'presets': presets})
+        except Exception as e:
+            logger.error(f"Error getting filter presets: {e}", exc_info=True)
+            return jsonify({'error': 'Failed to get filter presets'}), 500
+
+    @app.route('/api/filter-presets', methods=['POST'])
+    @require_api_key
+    def save_filter_preset():
+        """Save a new filter preset"""
+        data = request.json
+        if not data or not data.get('name'):
+            return jsonify({'error': 'name is required'}), 400
+
+        try:
+            name = sanitize_string_input(data['name'], 'name', max_length=100)
+            preset_id = db.save_filter_preset(
+                name=name,
+                min_price=data.get('minPrice'),
+                max_price=data.get('maxPrice'),
+                min_rooms=data.get('minRooms'),
+                max_rooms=data.get('maxRooms'),
+                min_sqm=data.get('minSqm'),
+                max_sqm=data.get('maxSqm'),
+                city=data.get('city'),
+                neighborhood=data.get('neighborhood'),
+                sort_by=data.get('sortBy')
+            )
+            return jsonify({'id': preset_id, 'status': 'saved'})
+        except ValidationError as e:
+            return jsonify({'error': str(e)}), 400
+        except Exception as e:
+            logger.error(f"Error saving filter preset: {e}", exc_info=True)
+            return jsonify({'error': 'Failed to save filter preset'}), 500
+
+    @app.route('/api/filter-presets/<int:preset_id>', methods=['GET'])
+    @require_api_key
+    def get_filter_preset(preset_id):
+        """Get a specific filter preset"""
+        try:
+            preset = db.get_filter_preset(preset_id)
+            if preset:
+                return jsonify(preset)
+            return jsonify({'error': 'Preset not found'}), 404
+        except Exception as e:
+            logger.error(f"Error getting filter preset: {e}", exc_info=True)
+            return jsonify({'error': 'Failed to get filter preset'}), 500
+
+    @app.route('/api/filter-presets/<int:preset_id>', methods=['DELETE'])
+    @require_api_key
+    def delete_filter_preset(preset_id):
+        """Delete a filter preset"""
+        try:
+            success = db.delete_filter_preset(preset_id)
+            if success:
+                return jsonify({'status': 'deleted'})
+            return jsonify({'error': 'Preset not found'}), 404
+        except Exception as e:
+            logger.error(f"Error deleting filter preset: {e}", exc_info=True)
+            return jsonify({'error': 'Failed to delete filter preset'}), 500
+
     @app.route('/api/export/csv')
     @require_api_key
     def export_csv():

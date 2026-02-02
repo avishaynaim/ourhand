@@ -319,9 +319,13 @@ function populateAutocomplete() {
         .join('');
 }
 
-// Save filters to localStorage
-function saveFilters() {
+// Save filters to database
+async function saveFilters() {
+    const name = prompt('שם לפילטר:');
+    if (!name) return;
+
     const filters = {
+        name: name,
         minPrice: document.getElementById('min-price').value,
         maxPrice: document.getElementById('max-price').value,
         minRooms: document.getElementById('min-rooms').value,
@@ -333,36 +337,116 @@ function saveFilters() {
         sortBy: document.getElementById('sort-by').value
     };
 
-    localStorage.setItem('yad2_filters', JSON.stringify(filters));
-    showToast('הפילטר נשמר בהצלחה!', 'success', 2000);
+    try {
+        const response = await fetch('/api/filter-presets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(filters)
+        });
+
+        if (response.ok) {
+            showToast('הפילטר נשמר בהצלחה!', 'success', 2000);
+            await loadFilterPresets(); // Refresh the presets list
+        } else {
+            const data = await response.json();
+            showToast(data.error || 'שגיאה בשמירת הפילטר', 'error');
+        }
+    } catch (e) {
+        console.error('Error saving filters:', e);
+        showToast('שגיאה בשמירת הפילטר', 'error');
+    }
 }
 
-// Load filters from localStorage
-function loadFilters() {
-    const saved = localStorage.getItem('yad2_filters');
-    if (!saved) {
-        showToast('לא נמצא פילטר שמור', 'warning', 2000);
+// Load filter presets from database
+async function loadFilterPresets() {
+    try {
+        const response = await fetch('/api/filter-presets');
+        if (!response.ok) {
+            console.error('Failed to load filter presets');
+            return;
+        }
+
+        const data = await response.json();
+        displayFilterPresets(data.presets || []);
+    } catch (e) {
+        console.error('Error loading filter presets:', e);
+    }
+}
+
+// Display filter presets in UI
+function displayFilterPresets(presets) {
+    const container = document.getElementById('saved-filters-container');
+    if (!container) return;
+
+    if (presets.length === 0) {
+        container.innerHTML = '<p style="color: #888; font-size: 14px;">אין פילטרים שמורים</p>';
         return;
     }
 
+    container.innerHTML = presets.map(preset => `
+        <div class="filter-preset" style="display: inline-block; margin: 5px;">
+            <button onclick="applyFilterPreset(${preset.id})" style="padding: 8px 12px; margin-right: 5px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                ${preset.name}
+            </button>
+            <button onclick="deleteFilterPreset(${preset.id})" style="padding: 8px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                ✕
+            </button>
+        </div>
+    `).join('');
+}
+
+// Apply a filter preset
+async function applyFilterPreset(presetId) {
     try {
-        const filters = JSON.parse(saved);
-        document.getElementById('min-price').value = filters.minPrice || '';
-        document.getElementById('max-price').value = filters.maxPrice || '';
-        document.getElementById('min-rooms').value = filters.minRooms || '';
-        document.getElementById('max-rooms').value = filters.maxRooms || '';
-        document.getElementById('min-sqm').value = filters.minSqm || '';
-        document.getElementById('max-sqm').value = filters.maxSqm || '';
-        document.getElementById('city-filter').value = filters.city || '';
-        document.getElementById('neighborhood-filter').value = filters.neighborhood || '';
-        document.getElementById('sort-by').value = filters.sortBy || 'date';
+        const response = await fetch(`/api/filter-presets/${presetId}`);
+        if (!response.ok) {
+            showToast('שגיאה בטעינת הפילטר', 'error');
+            return;
+        }
+
+        const preset = await response.json();
+        document.getElementById('min-price').value = preset.min_price || '';
+        document.getElementById('max-price').value = preset.max_price || '';
+        document.getElementById('min-rooms').value = preset.min_rooms || '';
+        document.getElementById('max-rooms').value = preset.max_rooms || '';
+        document.getElementById('min-sqm').value = preset.min_sqm || '';
+        document.getElementById('max-sqm').value = preset.max_sqm || '';
+        document.getElementById('city-filter').value = preset.city || '';
+        document.getElementById('neighborhood-filter').value = preset.neighborhood || '';
+        document.getElementById('sort-by').value = preset.sort_by || 'date';
 
         filterApartments();
         showToast('הפילטר נטען בהצלחה!', 'success', 2000);
     } catch (e) {
-        console.error('Error loading filters:', e);
+        console.error('Error applying filter preset:', e);
         showToast('שגיאה בטעינת הפילטר', 'error');
     }
+}
+
+// Delete a filter preset
+async function deleteFilterPreset(presetId) {
+    if (!confirm('האם למחוק פילטר זה?')) return;
+
+    try {
+        const response = await fetch(`/api/filter-presets/${presetId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showToast('הפילטר נמחק בהצלחה!', 'success', 2000);
+            await loadFilterPresets(); // Refresh the list
+        } else {
+            showToast('שגיאה במחיקת הפילטר', 'error');
+        }
+    } catch (e) {
+        console.error('Error deleting filter preset:', e);
+        showToast('שגיאה במחיקת הפילטר', 'error');
+    }
+}
+
+// Legacy function for backward compatibility
+function loadFilters() {
+    showToast('בחר פילטר מהרשימה למטה', 'info', 2000);
 }
 
 // Clear all filters
@@ -387,14 +471,7 @@ function clearFilters() {
 // Initial load
 loadStats();
 loadApartments();
-
-// Try to load saved filters on startup
-setTimeout(() => {
-    const saved = localStorage.getItem('yad2_filters');
-    if (saved) {
-        loadFilters();
-    }
-}, 500);
+loadFilterPresets(); // Load saved filter presets from database
 
 // Refresh every 5 minutes
 setInterval(() => {

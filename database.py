@@ -283,6 +283,24 @@ class Database:
                 )
             ''')
 
+            # Filter presets table for dashboard
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS filter_presets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    min_price REAL,
+                    max_price REAL,
+                    min_rooms REAL,
+                    max_rooms REAL,
+                    min_sqm REAL,
+                    max_sqm REAL,
+                    city TEXT,
+                    neighborhood TEXT,
+                    sort_by TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
             # User preferences table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS user_preferences (
@@ -1088,6 +1106,44 @@ class Database:
                     return False
 
         return True
+
+    # ============ Filter Presets ============
+
+    def save_filter_preset(self, name: str, min_price=None, max_price=None,
+                          min_rooms=None, max_rooms=None, min_sqm=None,
+                          max_sqm=None, city=None, neighborhood=None, sort_by=None) -> int:
+        """Save a complete filter preset"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO filter_presets (name, min_price, max_price, min_rooms, max_rooms,
+                                          min_sqm, max_sqm, city, neighborhood, sort_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (name, min_price, max_price, min_rooms, max_rooms,
+                  min_sqm, max_sqm, city, neighborhood, sort_by))
+            return cursor.lastrowid
+
+    def get_filter_presets(self) -> List[Dict]:
+        """Get all saved filter presets"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM filter_presets ORDER BY created_at DESC')
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_filter_preset(self, preset_id: int) -> Dict:
+        """Get a specific filter preset by ID"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM filter_presets WHERE id = ?', (preset_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def delete_filter_preset(self, preset_id: int) -> bool:
+        """Delete a filter preset"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM filter_presets WHERE id = ?', (preset_id,))
+            return cursor.rowcount > 0
 
     # ============ Settings ============
 

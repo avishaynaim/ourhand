@@ -102,9 +102,15 @@
 
             <div class="filter-actions">
                 <button class="btn btn-secondary" onclick="saveFilters()">שמור פילטר</button>
-                <button class="btn btn-secondary" onclick="loadFilters()">טען פילטר</button>
                 <button class="btn btn-secondary" onclick="clearFilters()">נקה הכל</button>
                 <span class="results-count" id="results-count"></span>
+            </div>
+
+            <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #ddd;">
+                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #333;">פילטרים שמורים:</h3>
+                <div id="saved-filters-container">
+                    <p style="color: #888; font-size: 14px;">טוען...</p>
+                </div>
             </div>
 
             <ul class="apartment-list" id="apartment-list">
