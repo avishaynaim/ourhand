@@ -1091,97 +1091,134 @@ if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') 
 // Init view mode
 if (viewMode === 'table') setViewMode('table');
 
-// ===== SAVED FILTER PRESETS =====
-function getSavedFilters() {
-    try { return JSON.parse(localStorage.getItem('savedFilters') || '[]'); }
-    catch(e) { return []; }
+// ===== SAVED FILTER PRESETS (DATABASE) =====
+let savedFiltersCache = [];
+
+async function loadSavedFiltersFromDB() {
+    try {
+        const res = await fetch('/api/filter-presets');
+        if (!res.ok) { console.error('Failed to load filters'); return; }
+        const data = await res.json();
+        savedFiltersCache = data.presets || [];
+        renderSavedFilters();
+    } catch(e) {
+        console.error('Error loading filters:', e);
+    }
 }
 
 function renderSavedFilters() {
-    const saved = getSavedFilters();
     const list = document.getElementById('saved-filters-list');
-    if (!saved.length) { list.innerHTML = '<span class="text-xs text-gray-400">אין פילטרים שמורים</span>'; return; }
-    list.innerHTML = saved.map((f, i) =>
+    if (!savedFiltersCache.length) {
+        list.innerHTML = '<span class="text-xs text-gray-400">אין פילטרים שמורים</span>';
+        return;
+    }
+    list.innerHTML = savedFiltersCache.map(f =>
         '<div class="flex items-center gap-1">' +
-        '<button onclick="loadSavedFilter('+i+')" class="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-brand rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800/40 font-medium">' +
+        '<button onclick="loadSavedFilter('+f.id+')" class="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-brand rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800/40 font-medium">' +
         esc(f.name) + '</button>' +
-        '<button onclick="deleteSavedFilter('+i+')" class="text-xs text-gray-400 hover:text-red-500 px-1" title="מחק">✕</button>' +
+        '<button onclick="deleteSavedFilter('+f.id+')" class="text-xs text-gray-400 hover:text-red-500 px-1" title="מחק">✕</button>' +
         '</div>'
     ).join('');
 }
 
-function saveCurrentFilter() {
+async function saveCurrentFilter() {
     const name = prompt('שם הפילטר:');
     if (!name) return;
-    const filters = JSON.parse(JSON.stringify(tableColFilters));
-    // Also save text inputs
-    ['title','address','date'].forEach(k => {
-        const el = document.getElementById('tf-'+k);
-        if (el && el.value) filters['_text_'+k] = el.value;
-    });
-    ['price','sqm','floor'].forEach(k => {
-        const mn = document.getElementById('tf-'+k+'-min');
-        const mx = document.getElementById('tf-'+k+'-max');
-        if (mn && mn.value) filters[k+'_min'] = mn.value;
-        if (mx && mx.value) filters[k+'_max'] = mx.value;
-    });
-    const saved = getSavedFilters();
-    saved.push({ name, filters });
-    localStorage.setItem('savedFilters', JSON.stringify(saved));
-    renderSavedFilters();
-}
 
-function loadSavedFilter(idx) {
-    const saved = getSavedFilters();
-    if (!saved[idx]) return;
-    const f = saved[idx].filters;
-    // Reset everything first
-    tableColFilters = {};
-    // Rebuild table to reset all controls
-    document.getElementById('apt-container').innerHTML = '';
-    // Restore filter state
-    Object.assign(tableColFilters, f);
-    // Render table with new filters
-    renderCurrentView();
-    // Restore text inputs after render
-    ['title','address','date'].forEach(k => {
-        const el = document.getElementById('tf-'+k);
-        if (el && f['_text_'+k]) el.value = f['_text_'+k];
-    });
-    ['price','sqm','floor'].forEach(k => {
-        const mn = document.getElementById('tf-'+k+'-min');
-        const mx = document.getElementById('tf-'+k+'-max');
-        if (mn && f[k+'_min']) mn.value = f[k+'_min'];
-        if (mx && f[k+'_max']) mx.value = f[k+'_max'];
-    });
-    // Restore multi-select checkboxes and buttons
-    ['tf-apt_type','tf-city','tf-neighborhood','tf-rooms','tf-status'].forEach(id => {
-        const key = id.replace('tf-','');
-        const vals = Array.isArray(tableColFilters[key]) ? tableColFilters[key] : [];
-        const drop = document.getElementById(id+'-drop');
-        if (drop) {
-            drop.querySelectorAll('input[type=checkbox]').forEach(cb => {
-                cb.checked = vals.includes(cb.value);
-            });
+    // Collect filter values
+    const filterData = {
+        name: name,
+        city: tableColFilters.city ? JSON.stringify(tableColFilters.city) : null,
+        neighborhood: tableColFilters.neighborhood ? JSON.stringify(tableColFilters.neighborhood) : null,
+        rooms: tableColFilters.rooms ? JSON.stringify(tableColFilters.rooms) : null,
+        minPrice: document.getElementById('tf-price-min')?.value || null,
+        maxPrice: document.getElementById('tf-price-max')?.value || null,
+        minSqm: document.getElementById('tf-sqm-min')?.value || null,
+        maxSqm: document.getElementById('tf-sqm-max')?.value || null
+    };
+
+    try {
+        const res = await fetch('/api/filter-presets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(filterData)
+        });
+        if (res.ok) {
+            await loadSavedFiltersFromDB();
+        } else {
+            alert('שגיאה בשמירת הפילטר');
         }
-        const btn = document.getElementById(id+'-btn');
-        if (btn) btn.textContent = vals.length === 0 ? 'הכל' : vals.length <= 2 ? vals.join(', ') : vals.length + ' נבחרו';
-    });
-    updateCascadingDropdowns();
-    renderTableBody();
-    renderPagination(getTableFilteredCount());
-    document.getElementById('view-count').textContent = getTableFilteredCount() + ' דירות';
+    } catch(e) {
+        console.error('Error saving filter:', e);
+        alert('שגיאה בשמירת הפילטר');
+    }
 }
 
-function deleteSavedFilter(idx) {
-    const saved = getSavedFilters();
-    saved.splice(idx, 1);
-    localStorage.setItem('savedFilters', JSON.stringify(saved));
-    renderSavedFilters();
+async function loadSavedFilter(presetId) {
+    try {
+        const res = await fetch('/api/filter-presets/' + presetId);
+        if (!res.ok) { alert('שגיאה בטעינת הפילטר'); return; }
+        const preset = await res.json();
+
+        // Reset filters
+        tableColFilters = {};
+
+        // Load from preset
+        if (preset.city) tableColFilters.city = JSON.parse(preset.city);
+        if (preset.neighborhood) tableColFilters.neighborhood = JSON.parse(preset.neighborhood);
+        if (preset.rooms) tableColFilters.rooms = JSON.parse(preset.rooms);
+
+        // Rebuild table
+        document.getElementById('apt-container').innerHTML = '';
+        renderCurrentView();
+
+        // Set range inputs
+        if (preset.min_price) document.getElementById('tf-price-min').value = preset.min_price;
+        if (preset.max_price) document.getElementById('tf-price-max').value = preset.max_price;
+        if (preset.min_sqm) document.getElementById('tf-sqm-min').value = preset.min_sqm;
+        if (preset.max_sqm) document.getElementById('tf-sqm-max').value = preset.max_sqm;
+
+        // Update multi-select dropdowns
+        ['tf-city','tf-neighborhood','tf-rooms'].forEach(id => {
+            const key = id.replace('tf-','');
+            const vals = Array.isArray(tableColFilters[key]) ? tableColFilters[key] : [];
+            const drop = document.getElementById(id+'-drop');
+            if (drop) {
+                drop.querySelectorAll('input[type=checkbox]').forEach(cb => {
+                    cb.checked = vals.includes(cb.value);
+                });
+            }
+            const btn = document.getElementById(id+'-btn');
+            if (btn) btn.textContent = vals.length === 0 ? 'הכל' : vals.length <= 2 ? vals.join(', ') : vals.length + ' נבחרו';
+        });
+
+        updateCascadingDropdowns();
+        renderTableBody();
+        renderPagination(getTableFilteredCount());
+        document.getElementById('view-count').textContent = getTableFilteredCount() + ' דירות';
+    } catch(e) {
+        console.error('Error loading filter:', e);
+        alert('שגיאה בטעינת הפילטר');
+    }
+}
+
+async function deleteSavedFilter(presetId) {
+    if (!confirm('האם למחוק פילטר זה?')) return;
+    try {
+        const res = await fetch('/api/filter-presets/' + presetId, { method: 'DELETE' });
+        if (res.ok) {
+            await loadSavedFiltersFromDB();
+        } else {
+            alert('שגיאה במחיקת הפילטר');
+        }
+    } catch(e) {
+        console.error('Error deleting filter:', e);
+        alert('שגיאה במחיקת הפילטר');
+    }
 }
 
 loadAll();
-renderSavedFilters();
+loadSavedFiltersFromDB();
 setInterval(loadAll, 300000);
 </script>
 </body>
