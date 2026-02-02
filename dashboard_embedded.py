@@ -69,10 +69,10 @@ def get_dashboard_html():
         .dark .ms-clear { border-top-color: #374151; }
         /* Price trend tooltip */
         .price-trend { position: relative; display: inline-block; cursor: pointer; margin-right: 4px; font-size: 14px; z-index: 50; }
-        .price-trend .pt-tip { display: none; position: absolute; bottom: 100%; right: 50%; transform: translateX(50%);
-            background: #1f2937; color: #fff; border-radius: 8px; padding: 8px 10px; font-size: 11px;
-            white-space: nowrap; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.25); min-width: 140px;
-            margin-bottom: 5px; pointer-events: none; }
+        .price-trend .pt-tip { display: none; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+            background: #1f2937; color: #fff; border-radius: 8px; padding: 10px 12px; font-size: 11px;
+            white-space: nowrap; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.25); min-width: 180px;
+            margin-top: 8px; pointer-events: none; }
         .price-trend:hover .pt-tip { display: block; }
         .pt-tip .pt-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
         .pt-tip .pt-date { color: #9ca3af; }
@@ -81,6 +81,10 @@ def get_dashboard_html():
         .pt-tip .pt-up { color: #f87171; }
         .pt-tip .pt-down { color: #34d399; }
         .pt-tip .pt-title { font-weight: 700; margin-bottom: 4px; border-bottom: 1px solid #374151; padding-bottom: 3px; text-align: center; }
+        .pt-graph { display: flex; align-items: flex-end; justify-content: space-around; height: 30px; margin: 6px 0; gap: 2px; }
+        .pt-bar { background: linear-gradient(to top, #667eea, #764ba2); border-radius: 2px 2px 0 0; width: 100%; transition: all 0.2s; }
+        .pt-bar.up { background: linear-gradient(to top, #f87171, #ef4444); }
+        .pt-bar.down { background: linear-gradient(to top, #34d399, #10b981); }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen">
@@ -575,10 +579,31 @@ function priceTrendHtml(apt) {
     const last = hist[hist.length - 1].price;
     const diff = last - first;
     let icon, cls;
-    if (diff < 0) { icon = '📉'; cls = 'pt-down'; }
-    else if (diff > 0) { icon = '📈'; cls = 'pt-up'; }
-    else { icon = '➡️'; cls = ''; }
+    if (diff < 0) { icon = '🔻'; cls = 'pt-down'; }
+    else if (diff > 0) { icon = '🔺'; cls = 'pt-up'; }
+    else { icon = '▪️'; cls = ''; }
+
     let tip = '<div class="pt-tip"><div class="pt-title">היסטוריית מחיר</div>';
+
+    // Add mini graph
+    const maxPrice = Math.max(...hist.map(h => h.price));
+    const minPrice = Math.min(...hist.map(h => h.price));
+    const range = maxPrice - minPrice || 1;
+    tip += '<div class="pt-graph">';
+    for (let i = 0; i < hist.length; i++) {
+        const h = hist[i];
+        const height = ((h.price - minPrice) / range) * 100;
+        let barCls = '';
+        if (i > 0) {
+            const prevPrice = hist[i-1].price;
+            if (h.price > prevPrice) barCls = 'up';
+            else if (h.price < prevPrice) barCls = 'down';
+        }
+        tip += '<div class="pt-bar '+barCls+'" style="height:'+Math.max(height, 10)+'%"></div>';
+    }
+    tip += '</div>';
+
+    // Add price history list
     for (let i = 0; i < hist.length; i++) {
         const h = hist[i];
         const p = '₪' + h.price.toLocaleString();
@@ -984,7 +1009,11 @@ function renderTableBody() {
     if (!tbody) return;
 
     if (!apts.length) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center py-8 text-gray-400">🤷 אין דירות להצגה</td></tr>';
+        if (!allApts.length) {
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-8 text-gray-400"><div class="text-2xl mb-2">⏳</div>טוען דירות, אנא המתן...</td></tr>';
+        } else {
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-8 text-gray-400">🤷 אין דירות להצגה</td></tr>';
+        }
         return;
     }
     const now = Date.now();
@@ -1042,7 +1071,11 @@ function renderTable() {
 function renderCards(apts) {
     const container = document.getElementById('apt-container');
     if (!apts.length) {
-        container.innerHTML = '<div class="text-center py-16 text-gray-400"><div class="text-4xl mb-3">🤷</div><p>אין דירות להצגה</p></div>';
+        if (!allApts.length) {
+            container.innerHTML = '<div class="text-center py-16 text-gray-400"><div class="text-4xl mb-3">⏳</div><p>טוען דירות, אנא המתן...</p></div>';
+        } else {
+            container.innerHTML = '<div class="text-center py-16 text-gray-400"><div class="text-4xl mb-3">🤷</div><p>אין דירות להצגה</p></div>';
+        }
         return;
     }
     const now = Date.now();
