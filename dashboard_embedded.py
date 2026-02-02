@@ -361,7 +361,12 @@ function getFilteredApts() {
         case 'removed':
             return removedApts.length ? removedApts : allApts.filter(a => a.is_active === 0);
         case 'price-drop':
-            return allApts.filter(a => a.is_active !== 0);
+            return allApts.filter(a => {
+                if (!a.price_history || a.price_history.length < 2) return false;
+                const first = a.price_history[0].price;
+                const last = a.price_history[a.price_history.length - 1].price;
+                return last < first; // Price decreased
+            });
         case 'avg':
             return [...allApts.filter(a => a.is_active !== 0)].sort((a,b) => (a.price||0) - (b.price||0));
         default:
