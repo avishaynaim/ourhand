@@ -7,7 +7,7 @@ def get_dashboard_html():
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>Yad2 Monitor Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -27,21 +27,27 @@ def get_dashboard_html():
         ::-webkit-scrollbar-thumb { background: #667eea40; border-radius: 3px; }
         /* Smooth transitions for dark mode */
         * { transition: background-color 0.2s, border-color 0.2s, color 0.2s; }
-        /* Table styles */
-        .apt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+        /* Table styles - Responsive */
+        .apt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; min-width: 800px; }
         .apt-table th { position: sticky; top: 0; z-index: 10; cursor: pointer; user-select: none;
             padding: 8px 6px; text-align: right; font-weight: 600; white-space: nowrap;
-            border-bottom: 2px solid #667eea; }
+            border-bottom: 2px solid #667eea; background: #f9fafb; }
+        .dark .apt-table th { background: #374151; }
         .apt-table th:hover { background: #667eea20; }
         .apt-table th .sort-icon { font-size: 10px; margin-right: 2px; opacity: 0.4; }
         .apt-table th.sorted .sort-icon { opacity: 1; color: #667eea; }
-        .apt-table td { padding: 6px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; position: relative; }
+        .apt-table td { padding: 6px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; position: relative;
+            overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
         .dark .apt-table td { border-bottom-color: #374151; }
         .apt-table tr:hover td { background: #667eea10; }
         .apt-table .col-filter { width: 100%; margin-top: 4px; padding: 3px 5px; font-size: 11px;
-            border: 1px solid #d1d5db; border-radius: 4px; background: inherit; color: inherit; }
+            border: 1px solid #d1d5db; border-radius: 4px; background: inherit; color: inherit; box-sizing: border-box; }
         .dark .apt-table .col-filter { border-color: #4b5563; }
-        .table-wrapper { overflow-x: auto; overflow-y: visible; border-radius: 12px; }
+        .table-wrapper { overflow-x: auto; overflow-y: visible; border-radius: 12px; -webkit-overflow-scrolling: touch; }
+        @media (max-width: 640px) {
+            .apt-table { font-size: 11px; min-width: 100%; }
+            .apt-table th, .apt-table td { padding: 4px 3px; }
+        }
         /* Multi-select dropdown */
         .ms-wrap { position: relative; margin-top: 4px; }
         .ms-btn { width: 100%; padding: 3px 5px; font-size: 11px; border: 1px solid #d1d5db;
@@ -67,31 +73,44 @@ def get_dashboard_html():
         .ms-clear { display: block; padding: 4px 8px; font-size: 10px; color: #667eea;
             cursor: pointer; border-top: 1px solid #e5e7eb; text-align: center; }
         .dark .ms-clear { border-top-color: #374151; }
-        /* Price trend tooltip */
-        .price-trend { position: relative; display: inline-block; cursor: pointer; margin-right: 4px; font-size: 14px; z-index: 50; }
-        .price-trend .pt-tip { display: none; position: absolute; left: 100%; top: 50%; transform: translateY(-50%);
-            background: #1f2937; color: #fff; border-radius: 8px; padding: 10px 12px; font-size: 11px;
-            z-index: 9999; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-            max-width: 280px; min-width: 200px; margin-left: 10px; pointer-events: none; }
+        /* Price trend tooltip - Responsive */
+        .price-trend { position: relative; display: inline-block; cursor: pointer; margin-right: 4px; font-size: 14px; }
+        .price-trend .pt-tip {
+            display: none;
+            position: fixed;
+            background: #1f2937;
+            color: #fff;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 11px;
+            z-index: 9999;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            max-width: min(280px, 90vw);
+            width: max-content;
+            pointer-events: none;
+        }
         .price-trend:hover .pt-tip { display: block; }
-        .pt-tip .pt-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
-        .pt-tip .pt-date { color: #9ca3af; }
-        .pt-tip .pt-price { font-weight: 600; }
+        .pt-tip .pt-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; flex-wrap: wrap; }
+        .pt-tip .pt-date { color: #9ca3af; font-size: 10px; }
+        .pt-tip .pt-price { font-weight: 600; font-size: 11px; }
         .pt-tip .pt-diff { font-size: 10px; }
         .pt-tip .pt-up { color: #f87171; }
         .pt-tip .pt-down { color: #34d399; }
         .pt-tip .pt-title { font-weight: 700; margin-bottom: 4px; border-bottom: 1px solid #374151; padding-bottom: 3px; text-align: center; }
-        .pt-tip::before { content: ''; position: absolute; right: 100%; top: 50%; transform: translateY(-50%);
-            border: 6px solid transparent; border-right-color: #1f2937; }
-        .pt-graph { display: flex; align-items: flex-end; justify-content: space-around; height: 30px; margin: 6px 0; gap: 2px; }
-        .pt-bar { background: linear-gradient(to top, #667eea, #764ba2); border-radius: 2px 2px 0 0; width: 100%; transition: all 0.2s; }
-        .pt-bar.up { background: linear-gradient(to top, #f87171, #ef4444); }
-        .pt-bar.down { background: linear-gradient(to top, #34d399, #10b981); }
+        /* Mobile: show below */
+        @media (max-width: 640px) {
+            .price-trend .pt-tip {
+                left: 50% !important;
+                transform: translateX(-50%) !important;
+                top: auto !important;
+                bottom: auto !important;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen">
 
-<div class="max-w-6xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+<div class="w-full max-w-7xl mx-auto px-2 py-4 sm:px-4 md:px-6 lg:px-8">
 
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
@@ -246,6 +265,68 @@ function esc(t) {
     const d = document.createElement('div');
     d.textContent = t;
     return d.innerHTML;
+}
+
+function positionTooltip(event) {
+    const trend = event.currentTarget;
+    const tip = trend.querySelector('.pt-tip');
+    if (!tip) return;
+
+    // Get positions
+    const rect = trend.getBoundingClientRect();
+    const tipRect = tip.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const isMobile = viewportWidth < 640;
+
+    if (isMobile) {
+        // Mobile: position below the icon, centered
+        const left = rect.left + rect.width / 2;
+        const top = rect.bottom + 8;
+        tip.style.left = left + 'px';
+        tip.style.top = top + 'px';
+        tip.style.transform = 'translateX(-50%)';
+    } else {
+        // Desktop: position to the right if space, otherwise left
+        const spaceRight = viewportWidth - rect.right;
+        const spaceLeft = rect.left;
+
+        if (spaceRight > 300) {
+            // Position to the right
+            tip.style.left = (rect.right + 10) + 'px';
+            tip.style.top = (rect.top + rect.height / 2) + 'px';
+            tip.style.transform = 'translateY(-50%)';
+        } else if (spaceLeft > 300) {
+            // Position to the left
+            tip.style.left = (rect.left - tipRect.width - 10) + 'px';
+            tip.style.top = (rect.top + rect.height / 2) + 'px';
+            tip.style.transform = 'translateY(-50%)';
+        } else {
+            // Not enough space on sides, position below
+            tip.style.left = (rect.left + rect.width / 2) + 'px';
+            tip.style.top = (rect.bottom + 8) + 'px';
+            tip.style.transform = 'translateX(-50%)';
+        }
+    }
+
+    // Ensure tooltip stays within viewport
+    setTimeout(() => {
+        const finalRect = tip.getBoundingClientRect();
+        if (finalRect.right > viewportWidth) {
+            tip.style.left = (viewportWidth - finalRect.width - 10) + 'px';
+            tip.style.transform = 'none';
+        }
+        if (finalRect.left < 0) {
+            tip.style.left = '10px';
+            tip.style.transform = 'none';
+        }
+        if (finalRect.bottom > viewportHeight) {
+            tip.style.top = (viewportHeight - finalRect.height - 10) + 'px';
+        }
+        if (finalRect.top < 0) {
+            tip.style.top = '10px';
+        }
+    }, 0);
 }
 
 function toggleTheme() {
@@ -603,23 +684,43 @@ function priceTrendHtml(apt) {
 
     let tip = '<div class="pt-tip"><div class="pt-title">היסטוריית מחיר</div>';
 
-    // Add mini graph
+    // Add mini line chart (SVG) - Responsive
     const maxPrice = Math.max(...hist.map(h => h.price));
     const minPrice = Math.min(...hist.map(h => h.price));
     const range = maxPrice - minPrice || 1;
-    tip += '<div class="pt-graph">';
+    const svgW = 200;
+    const svgH = 40;
+    const padding = 5;
+    const chartW = svgW - padding * 2;
+    const chartH = svgH - padding * 2;
+
+    // Create points for the line
+    let points = [];
     for (let i = 0; i < hist.length; i++) {
-        const h = hist[i];
-        const height = ((h.price - minPrice) / range) * 100;
-        let barCls = '';
-        if (i > 0) {
-            const prevPrice = hist[i-1].price;
-            if (h.price > prevPrice) barCls = 'up';
-            else if (h.price < prevPrice) barCls = 'down';
-        }
-        tip += '<div class="pt-bar '+barCls+'" style="height:'+Math.max(height, 10)+'%"></div>';
+        const x = padding + (i / Math.max(hist.length - 1, 1)) * chartW;
+        const y = svgH - padding - ((hist[i].price - minPrice) / range) * chartH;
+        points.push(x + ',' + y);
     }
-    tip += '</div>';
+    const pointsStr = points.join(' ');
+
+    // Determine color based on overall trend
+    const firstPrice = hist[0].price;
+    const lastPrice = hist[hist.length - 1].price;
+    const trendDiff = lastPrice - firstPrice;
+    let lineColor = '#667eea'; // neutral
+    if (trendDiff < 0) lineColor = '#10b981'; // down (green)
+    else if (trendDiff > 0) lineColor = '#ef4444'; // up (red)
+
+    tip += '<svg viewBox="0 0 '+svgW+' '+svgH+'" style="width:100%;max-width:'+svgW+'px;height:auto;margin:6px 0" preserveAspectRatio="xMidYMid meet">';
+    // Draw the line
+    tip += '<polyline points="'+pointsStr+'" fill="none" stroke="'+lineColor+'" stroke-width="2" stroke-linejoin="round"/>';
+    // Draw points
+    for (let i = 0; i < hist.length; i++) {
+        const x = padding + (i / Math.max(hist.length - 1, 1)) * chartW;
+        const y = svgH - padding - ((hist[i].price - minPrice) / range) * chartH;
+        tip += '<circle cx="'+x+'" cy="'+y+'" r="2.5" fill="'+lineColor+'"/>';
+    }
+    tip += '</svg>';
 
     // Add price history list
     for (let i = 0; i < hist.length; i++) {
@@ -641,7 +742,7 @@ function priceTrendHtml(apt) {
     const totalCls = totalDiff > 0 ? 'pt-up' : totalDiff < 0 ? 'pt-down' : '';
     tip += '<div class="pt-row" style="border-top:1px solid #374151;margin-top:3px;padding-top:3px"><span class="pt-date">סה"כ</span><span class="pt-diff '+totalCls+'" style="font-size:12px;font-weight:700">' + totalSign + totalDiff.toLocaleString() + '</span></div>';
     tip += '</div>';
-    return '<span class="price-trend">' + icon + tip + '</span>';
+    return '<span class="price-trend" onmouseenter="positionTooltip(event)">' + icon + tip + '</span>';
 }
 
 // ===== TABLE VIEW =====
@@ -978,7 +1079,10 @@ function ensureTableStructure() {
         {key:'date', sortKey:'first_seen', label:'📅 תאריך', w:'90px', filter:'text'},
         {key:'link', sortKey:'', label:'קישור', w:'55px', filter:'none'}
     ];
-    let html = '<div class="table-wrapper bg-white dark:bg-gray-800 rounded-xl shadow"><table class="apt-table">';
+
+    // Add filtered stats section before the table
+    let html = '<div id="table-stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4"></div>';
+    html += '<div class="table-wrapper bg-white dark:bg-gray-800 rounded-xl shadow"><table class="apt-table">';
     html += '<thead class="bg-gray-50 dark:bg-gray-700"><tr>';
     cols.forEach(c => {
         const w = c.w ? 'width:'+c.w+';' : '';
@@ -1017,6 +1121,62 @@ function ensureTableStructure() {
     container.innerHTML = html;
 }
 
+function renderTableStats() {
+    const filtered = getTableFiltered();
+    const statsEl = document.getElementById('table-stats');
+    if (!statsEl) return;
+
+    // Calculate stats for filtered data
+    const total = filtered.length;
+    const prices = filtered.filter(a => a.price).map(a => a.price);
+
+    // Calculate average
+    let avg = 0;
+    if (prices.length) avg = Math.round(prices.reduce((s, p) => s + p, 0) / prices.length);
+
+    // Calculate median
+    let median = 0;
+    if (prices.length) {
+        const sorted = [...prices].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        median = sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
+    }
+
+    // Calculate price drops
+    let priceDrops = 0;
+    filtered.forEach(a => {
+        if (a.price_history && a.price_history.length >= 2) {
+            const first = a.price_history[0].price;
+            const last = a.price_history[a.price_history.length - 1].price;
+            if (last < first) priceDrops++;
+        }
+    });
+
+    // Render stats cards
+    statsEl.innerHTML = `
+        <div class="stat-card bg-white dark:bg-gray-800 rounded-xl shadow p-4 text-center">
+            <div class="text-2xl mb-1">📊</div>
+            <div class="text-xl sm:text-2xl font-bold text-brand">${total.toLocaleString()}</div>
+            <div class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">דירות מסוננות</div>
+        </div>
+        <div class="stat-card bg-white dark:bg-gray-800 rounded-xl shadow p-4 text-center">
+            <div class="text-2xl mb-1">🔻</div>
+            <div class="text-xl sm:text-2xl font-bold text-green-600">${priceDrops.toLocaleString()}</div>
+            <div class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">ירידות מחיר</div>
+        </div>
+        <div class="stat-card bg-white dark:bg-gray-800 rounded-xl shadow p-4 text-center">
+            <div class="text-2xl mb-1">📊</div>
+            <div class="text-xl sm:text-2xl font-bold text-brand">${median ? median.toLocaleString() + ' ₪' : '-'}</div>
+            <div class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">חציון מחיר</div>
+        </div>
+        <div class="stat-card bg-white dark:bg-gray-800 rounded-xl shadow p-4 text-center">
+            <div class="text-2xl mb-1">💰</div>
+            <div class="text-xl sm:text-2xl font-bold text-brand">${avg ? avg.toLocaleString() + ' ₪' : '-'}</div>
+            <div class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">ממוצע מחיר</div>
+        </div>
+    `;
+}
+
 function renderTableBody() {
     const allFiltered = getTableFiltered();
     const totalPages = Math.max(1, Math.ceil(allFiltered.length / pageSize));
@@ -1025,6 +1185,9 @@ function renderTableBody() {
     const apts = allFiltered.slice(start, start + pageSize);
     const tbody = document.getElementById('table-body');
     if (!tbody) return;
+
+    // Update stats
+    renderTableStats();
 
     if (!apts.length) {
         if (!allApts.length) {

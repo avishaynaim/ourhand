@@ -2,9 +2,11 @@
 Version information for OurHand Monitor
 """
 
-__version__ = "1.4.0"
+__version__ = "1.6.0"
 
 # Version History:
+# 1.6.0 - 2026-02-02: Full responsive redesign with Tailwind - fix all cutoff issues
+# 1.5.0 - 2026-02-02: Replace bar chart with line chart + add filtered stats to table view
 # 1.4.0 - 2026-02-02: Add median price statistic to dashboard
 # 1.3.2 - 2026-02-02: Fix tooltip cutoff - position to right side instead of below
 # 1.3.1 - 2026-02-02: Fix price drops count to match filter (data consistency)
