@@ -1314,6 +1314,112 @@ def create_web_app(database, analytics=None, telegram_bot=None):
             logger.error(f"Error in telegram webhook: {e}", exc_info=True)
             return jsonify({'error': 'Internal server error'}), 500
 
+    @app.route('/api/diagnostic/price-tracking')
+    @require_api_key
+    def diagnostic_price_tracking():
+        """Run price tracking diagnostic and return results"""
+        try:
+            import psycopg2.extras
+
+            results = {
+                'timestamp': datetime.now().isoformat(),
+                'status': 'running'
+            }
+
+            with db.get_connection() as conn:
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+                # Basic stats
+                cursor.execute("SELECT COUNT(*) as total FROM apartments WHERE is_active = 1")
+                results['total_active_apartments'] = cursor.fetchone()['total']
+
+                cursor.execute("SELECT COUNT(*) as total FROM price_history")
+                results['total_price_history_entries'] = cursor.fetchone()['total']
+
+                cursor.execute("SELECT COUNT(DISTINCT apartment_id) as count FROM price_history")
+                results['apartments_with_history'] = cursor.fetchone()['count']
+
+                # Apartments with 2+ entries
+                cursor.execute("""
+                    SELECT apartment_id, COUNT(*) as entry_count
+                    FROM price_history
+                    GROUP BY apartment_id
+                    HAVING COUNT(*) > 1
+                """)
+                apts_with_changes = cursor.fetchall()
+                results['apartments_with_multiple_entries'] = len(apts_with_changes)
+
+                # Recent entries
+                cursor.execute("""
+                    SELECT COUNT(*) as count
+                    FROM price_history
+                    WHERE recorded_at > NOW() - INTERVAL '24 hours'
+                """)
+                results['price_history_last_24h'] = cursor.fetchone()['count']
+
+                # Sample apartments with price changes
+                cursor.execute("""
+                    SELECT apartment_id, COUNT(*) as entry_count
+                    FROM price_history
+                    GROUP BY apartment_id
+                    ORDER BY entry_count DESC
+                    LIMIT 5
+                """)
+                samples = []
+                for sample in cursor.fetchall():
+                    apt_id = sample['apartment_id']
+
+                    cursor.execute("SELECT title, price FROM apartments WHERE id = %s", (apt_id,))
+                    apt = cursor.fetchone()
+
+                    cursor.execute("""
+                        SELECT price, recorded_at
+                        FROM price_history
+                        WHERE apartment_id = %s
+                        ORDER BY recorded_at ASC
+                    """, (apt_id,))
+                    history = cursor.fetchall()
+
+                    if apt and history:
+                        samples.append({
+                            'id': apt_id,
+                            'title': apt['title'],
+                            'current_price': apt['price'],
+                            'history_count': len(history),
+                            'first_price': history[0]['price'],
+                            'last_price': history[-1]['price'],
+                            'price_diff': history[-1]['price'] - history[0]['price'],
+                            'history': [
+                                {
+                                    'price': h['price'],
+                                    'date': h['recorded_at'].isoformat()
+                                }
+                                for h in history
+                            ]
+                        })
+
+                results['sample_apartments'] = samples
+
+                # Diagnosis
+                if results['total_price_history_entries'] == 0:
+                    results['diagnosis'] = 'CRITICAL: No price history data found'
+                    results['status'] = 'error'
+                elif results['apartments_with_multiple_entries'] == 0:
+                    results['diagnosis'] = 'No apartments with multiple entries. Scraper needs to run again.'
+                    results['status'] = 'warning'
+                elif results['apartments_with_multiple_entries'] < results['total_active_apartments'] * 0.05:
+                    results['diagnosis'] = f"Only {results['apartments_with_multiple_entries']} apartments have price changes (<5%)"
+                    results['status'] = 'warning'
+                else:
+                    results['diagnosis'] = f"Price tracking working! {results['apartments_with_multiple_entries']} apartments have changes"
+                    results['status'] = 'ok'
+
+            return jsonify(results)
+
+        except Exception as e:
+            logger.error(f"Diagnostic error: {e}", exc_info=True)
+            return jsonify({'error': str(e), 'status': 'error'}), 500
+
     return app
 
 
