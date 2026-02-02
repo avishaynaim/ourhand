@@ -69,10 +69,10 @@ def get_dashboard_html():
         .dark .ms-clear { border-top-color: #374151; }
         /* Price trend tooltip */
         .price-trend { position: relative; display: inline-block; cursor: pointer; margin-right: 4px; font-size: 14px; z-index: 50; }
-        .price-trend .pt-tip { display: none; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+        .price-trend .pt-tip { display: none; position: absolute; left: 100%; top: 50%; transform: translateY(-50%);
             background: #1f2937; color: #fff; border-radius: 8px; padding: 10px 12px; font-size: 11px;
-            white-space: nowrap; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.25); min-width: 180px;
-            margin-top: 8px; pointer-events: none; }
+            z-index: 9999; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            max-width: 280px; min-width: 200px; margin-left: 10px; pointer-events: none; }
         .price-trend:hover .pt-tip { display: block; }
         .pt-tip .pt-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
         .pt-tip .pt-date { color: #9ca3af; }
@@ -81,6 +81,8 @@ def get_dashboard_html():
         .pt-tip .pt-up { color: #f87171; }
         .pt-tip .pt-down { color: #34d399; }
         .pt-tip .pt-title { font-weight: 700; margin-bottom: 4px; border-bottom: 1px solid #374151; padding-bottom: 3px; text-align: center; }
+        .pt-tip::before { content: ''; position: absolute; right: 100%; top: 50%; transform: translateY(-50%);
+            border: 6px solid transparent; border-right-color: #1f2937; }
         .pt-graph { display: flex; align-items: flex-end; justify-content: space-around; height: 30px; margin: 6px 0; gap: 2px; }
         .pt-bar { background: linear-gradient(to top, #667eea, #764ba2); border-radius: 2px 2px 0 0; width: 100%; transition: all 0.2s; }
         .pt-bar.up { background: linear-gradient(to top, #f87171, #ef4444); }
