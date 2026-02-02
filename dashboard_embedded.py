@@ -89,10 +89,13 @@ def get_dashboard_html():
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl sm:text-3xl font-bold text-brand">🏠 Yad2 Monitor</h1>
-        <button onclick="toggleTheme()" id="theme-btn"
-            class="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center text-lg shadow-lg hover:opacity-80">
-            🌙
-        </button>
+        <div class="flex items-center gap-3">
+            <span class="text-sm px-3 py-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium">v{{ version }}</span>
+            <button onclick="toggleTheme()" id="theme-btn"
+                class="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center text-lg shadow-lg hover:opacity-80">
+                🌙
+            </button>
+        </div>
     </div>
 
     <!-- Stats Grid -->
