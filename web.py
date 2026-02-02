@@ -10,6 +10,7 @@ import json
 import logging
 import tempfile
 from functools import wraps
+from version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -423,12 +424,12 @@ def create_web_app(database, analytics=None, telegram_bot=None):
         # Priority 1: Use embedded dashboard (always works)
         if EMBEDDED_DASHBOARD_AVAILABLE:
             logger.info("Serving embedded dashboard")
-            return render_template_string(EMBEDDED_DASHBOARD_HTML)
+            return render_template_string(EMBEDDED_DASHBOARD_HTML, version=__version__)
 
         # Priority 2: Try template file
         try:
             logger.info("Attempting to load dashboard.html template")
-            return render_template('dashboard.html')
+            return render_template('dashboard.html', version=__version__)
         except Exception as e:
             logger.warning(f"Could not load dashboard.html template: {e}")
 
