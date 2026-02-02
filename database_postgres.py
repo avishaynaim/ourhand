@@ -455,6 +455,9 @@ class PostgreSQLDatabase:
 
                     values = []
                     price_history_values = []
+                    price_changes_detected = 0
+                    new_apartments_detected = 0
+
                     for apt in batch:
                         apt_id = apt['id']
                         new_price = apt.get('price')
@@ -471,8 +474,15 @@ class PostgreSQLDatabase:
                         # Track price history for new apartments or price changes
                         if new_price:
                             old_price = existing_prices.get(apt_id)
-                            if old_price is None or old_price != new_price:
+                            if old_price is None:
+                                # New apartment
                                 price_history_values.append((apt_id, new_price, now))
+                                new_apartments_detected += 1
+                            elif old_price != new_price:
+                                # Price changed
+                                price_history_values.append((apt_id, new_price, now))
+                                price_changes_detected += 1
+                                logger.info(f"💰 Price change detected: {apt_id[:30]}... ₪{old_price:,} → ₪{new_price:,}")
 
                     # PostgreSQL upsert with ON CONFLICT
                     execute_values(cursor, '''
@@ -507,7 +517,12 @@ class PostgreSQLDatabase:
                             INSERT INTO price_history (apartment_id, price, recorded_at)
                             VALUES %s
                         ''', price_history_values)
-                        logger.info(f"📈 Recorded {len(price_history_values)} price history entries")
+                        logger.info(
+                            f"📈 Recorded {len(price_history_values)} price history entries "
+                            f"(new: {new_apartments_detected}, changes: {price_changes_detected})"
+                        )
+                    else:
+                        logger.info("⚠️  No price history entries in this batch (no new apartments or price changes)")
 
                     total += len(batch)
                     logger.info(f"💾 Batch saved: {total}/{len(apartments)} apartments")
