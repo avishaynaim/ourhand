@@ -1,6 +1,12 @@
 """
-SQLite Database Module for Yad2 Monitor
-Handles persistent storage for apartments, price history, settings, favorites
+SQLite Database Module for Yad2 Monitor - DEPRECATED
+
+⚠️ WARNING: This module is DEPRECATED and NOT USED in production.
+⚠️ Production deployment uses PostgreSQL (database_postgres.py).
+⚠️ This file is kept for reference only.
+
+Railway deployment requires PostgreSQL.
+All database changes must be made in database_postgres.py.
 """
 import sqlite3
 import json
