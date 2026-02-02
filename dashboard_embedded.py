@@ -35,13 +35,13 @@ def get_dashboard_html():
         .apt-table th:hover { background: #667eea20; }
         .apt-table th .sort-icon { font-size: 10px; margin-right: 2px; opacity: 0.4; }
         .apt-table th.sorted .sort-icon { opacity: 1; color: #667eea; }
-        .apt-table td { padding: 6px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
+        .apt-table td { padding: 6px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; position: relative; }
         .dark .apt-table td { border-bottom-color: #374151; }
         .apt-table tr:hover td { background: #667eea10; }
         .apt-table .col-filter { width: 100%; margin-top: 4px; padding: 3px 5px; font-size: 11px;
             border: 1px solid #d1d5db; border-radius: 4px; background: inherit; color: inherit; }
         .dark .apt-table .col-filter { border-color: #4b5563; }
-        .table-wrapper { overflow-x: auto; border-radius: 12px; }
+        .table-wrapper { overflow-x: auto; overflow-y: visible; border-radius: 12px; }
         /* Multi-select dropdown */
         .ms-wrap { position: relative; margin-top: 4px; }
         .ms-btn { width: 100%; padding: 3px 5px; font-size: 11px; border: 1px solid #d1d5db;
@@ -68,10 +68,11 @@ def get_dashboard_html():
             cursor: pointer; border-top: 1px solid #e5e7eb; text-align: center; }
         .dark .ms-clear { border-top-color: #374151; }
         /* Price trend tooltip */
-        .price-trend { position: relative; display: inline-block; cursor: pointer; margin-right: 4px; font-size: 14px; }
+        .price-trend { position: relative; display: inline-block; cursor: pointer; margin-right: 4px; font-size: 14px; z-index: 50; }
         .price-trend .pt-tip { display: none; position: absolute; bottom: 100%; right: 50%; transform: translateX(50%);
             background: #1f2937; color: #fff; border-radius: 8px; padding: 8px 10px; font-size: 11px;
-            white-space: nowrap; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.25); min-width: 140px; }
+            white-space: nowrap; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.25); min-width: 140px;
+            margin-bottom: 5px; pointer-events: none; }
         .price-trend:hover .pt-tip { display: block; }
         .pt-tip .pt-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
         .pt-tip .pt-date { color: #9ca3af; }

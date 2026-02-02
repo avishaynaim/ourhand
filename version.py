@@ -2,9 +2,10 @@
 Version information for OurHand Monitor
 """
 
-__version__ = "1.2.4"
+__version__ = "1.2.5"
 
 # Version History:
+# 1.2.5 - 2026-02-02: Fix price trend tooltip being cut off by table overflow
 # 1.2.4 - 2026-02-02: Fix price-drop filter to actually filter apartments with price decreases
 # 1.2.3 - 2026-02-02: Add remote diagnostic API endpoint for price tracking
 # 1.2.2 - 2026-02-02: Add detailed price tracking diagnostics and logging
