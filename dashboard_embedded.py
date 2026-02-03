@@ -1341,19 +1341,12 @@ async function saveCurrentFilter() {
     const name = prompt('שם הפילטר:');
     if (!name) return;
 
-    // Debug: log current filter state
-    console.log('saveCurrentFilter - tableColFilters:', JSON.stringify(tableColFilters));
-    console.log('saveCurrentFilter - tableColFilters.rooms:', tableColFilters.rooms);
-
     // Convert rooms array to min/max
     let minRooms = null, maxRooms = null;
     if (tableColFilters.rooms && tableColFilters.rooms.length > 0) {
         const roomNums = tableColFilters.rooms.map(r => parseFloat(r));
         minRooms = Math.min(...roomNums);
         maxRooms = Math.max(...roomNums);
-        console.log('saveCurrentFilter - computed minRooms:', minRooms, 'maxRooms:', maxRooms);
-    } else {
-        console.log('saveCurrentFilter - no rooms selected, tableColFilters.rooms is:', tableColFilters.rooms);
     }
 
     // Collect filter values
@@ -1368,9 +1361,6 @@ async function saveCurrentFilter() {
         minSqm: document.getElementById('tf-sqm-min')?.value || null,
         maxSqm: document.getElementById('tf-sqm-max')?.value || null
     };
-
-    // Debug: log what we're sending
-    console.log('saveCurrentFilter - sending filterData:', JSON.stringify(filterData));
 
     try {
         const res = await fetch('/api/filter-presets', {

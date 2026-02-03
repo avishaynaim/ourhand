@@ -24,20 +24,25 @@ web
 
 Deployment successful
 
-4 minutes ago
+7 minutes ago
 
+web
 
-1 change in web
+Redeployment successful
 
-avishaynaim
+11 minutes ago
 
-·
-4 minutes ago
 web
 
 Deployment successful
 
-6 minutes ago
+15 minutes ago
+
+web
+
+Deployment successful
+
+28 minutes ago
 
 web
 
@@ -49,55 +54,63 @@ web
 
 Deployment successful
 
-19 hours ago
+35 minutes ago
 
 web
 
 Deployment successful
 
-19 hours ago
+44 minutes ago
 
 web
 
 Deployment successful
 
-19 hours ago
+45 minutes ago
+
+web
+
+Deployment restarted
+
+3 hours ago
 
 web
 
 Deployment successful
 
-19 hours ago
+4 hours ago
+
+
+1 change in web
+
+avishaynaim
+
+·
+4 hours ago
+web
+
+Deployment successful
+
+4 hours ago
 
 web
 
 Deployment successful
 
-19 hours ago
+5 hours ago
 
+
+1 change in web
+
+avishaynaim
+
+·
+5 hours ago
 web
 
 Deployment successful
 
-21 hours ago
-
-web
-
-Deployment successful
-
-21 hours ago
-
-web
-
-Deployment successful
-
-21 hours ago
-
-web
-
-Deployment successful
-
-22 hours ago
+5 hours ago
 
 Scroll to load more
 
@@ -135,10 +148,10 @@ History
 
 web
 /
-13d0f1bb
+ce618180
 Active
 
-Feb 3, 2026, 10:05 AM UTC
+Feb 3, 2026, 3:03 PM UTC
 web-production-e13fb.up.railway.app
 Details
 Build Logs
@@ -147,131 +160,130 @@ HTTP Logs
 Network Flow Logs
 Filter and search logs
 
-2026-02-03 10:07:53,295 - database_postgres - INFO - 💰 Price change detected: ne6wgaj3... ₪4,700 → ₪4,750
-2026-02-03 10:07:53,296 - database_postgres - INFO - 💰 Price change detected: cgc9jkpu... ₪5,500 → ₪5,200
-2026-02-03 10:07:53,296 - database_postgres - INFO - 💰 Price change detected: cjrks5je... ₪7,500 → ₪6,900
-2026-02-03 10:07:53,296 - database_postgres - INFO - 💰 Price change detected: a37vcuuq... ₪2,200 → ₪2,000
-2026-02-03 10:07:53,296 - database_postgres - INFO - 💰 Price change detected: o93xp6bx... ₪8,500 → ₪8,000
-2026-02-03 10:07:53,297 - database_postgres - INFO - 💰 Price change detected: ku66tzio... ₪3,900 → ₪4,000
-2026-02-03 10:07:53,297 - database_postgres - INFO - 💰 Price change detected: uqgrc463... ₪8,500 → ₪9,000
-2026-02-03 10:07:53,297 - database_postgres - INFO - 💰 Price change detected: 4qtm8sko... ₪8,800 → ₪8,500
-2026-02-03 10:07:53,363 - database_postgres - INFO - 📈 Recorded 59 price history entries (new: 44, changes: 15)
-2026-02-03 10:07:53,363 - database_postgres - INFO - 💾 Batch saved: 1000/1080 apartments
-2026-02-03 10:07:53,366 - database_postgres - INFO - 💰 Price change detected: 83re1x57... ₪6,900 → ₪7,200
-2026-02-03 10:07:53,366 - database_postgres - INFO - 💰 Price change detected: d99j1flc... ₪5,000 → ₪4,950
-2026-02-03 10:07:53,366 - database_postgres - INFO - 💰 Price change detected: m6nq9bk8... ₪3,800 → ₪4,000
-2026-02-03 10:07:53,366 - database_postgres - INFO - 💰 Price change detected: 5urjge2g... ₪3,000 → ₪2,800
-2026-02-03 10:07:53,379 - database_postgres - INFO - 📈 Recorded 9 price history entries (new: 5, changes: 4)
-2026-02-03 10:07:53,379 - database_postgres - INFO - 💾 Batch saved: 1075/1080 apartments
-2026-02-03 10:07:53,482 - database_postgres - INFO - ✅ Committed 1075 apartments to PostgreSQL
-2026-02-03 10:07:53,482 - __main__ - INFO - 💾 SAVED 1075 apartments to DB (total saved: 2108)
-2026-02-03 10:07:53,483 - __main__ - INFO - 📊 Pages 51-53: +120 | Found: 2108 | Saved: 2108 | OK:54 Fail:0 | 1.6min
-2026-02-03 10:07:59,049 - __main__ - INFO - 📊 Pages 54-56: +120 | Found: 2228 | Saved: 2108 | OK:57 Fail:0 | 1.7min
-2026-02-03 10:08:03,445 - __main__ - INFO - 📊 Pages 57-59: +120 | Found: 2348 | Saved: 2108 | OK:60 Fail:0 | 1.8min
-2026-02-03 10:08:10,071 - __main__ - INFO - 📊 Pages 60-62: +120 | Found: 2468 | Saved: 2108 | OK:63 Fail:0 | 1.9min
-2026-02-03 10:08:15,011 - __main__ - INFO - 📊 Pages 63-65: +120 | Found: 2588 | Saved: 2108 | OK:66 Fail:0 | 2.0min
-2026-02-03 10:08:20,943 - __main__ - INFO - 📊 Pages 66-68: +120 | Found: 2708 | Saved: 2108 | OK:69 Fail:0 | 2.1min
-2026-02-03 10:08:27,188 - __main__ - INFO - 📊 Pages 69-71: +120 | Found: 2828 | Saved: 2108 | OK:72 Fail:0 | 2.2min
-2026-02-03 10:08:31,765 - __main__ - INFO - 📊 Pages 72-74: +120 | Found: 2948 | Saved: 2108 | OK:75 Fail:0 | 2.2min
-2026-02-03 10:08:36,807 - __main__ - INFO - 📊 Pages 75-77: +120 | Found: 3068 | Saved: 2108 | OK:78 Fail:0 | 2.3min
-2026-02-03 10:08:43,618 - database_postgres - INFO - 📋 Deduplicated: 1080 → 1078 unique apartments
-2026-02-03 10:08:43,790 - database_postgres - INFO - 💰 Price change detected: cvrjt70v... ₪2,100 → ₪1,800
-2026-02-03 10:08:43,790 - database_postgres - INFO - 💰 Price change detected: mnsahxc1... ₪2,130 → ₪1,930
-2026-02-03 10:08:43,790 - database_postgres - INFO - 💰 Price change detected: q23vnxsg... ₪4,000 → ₪3,800
-2026-02-03 10:08:43,791 - database_postgres - INFO - 💰 Price change detected: eszmk5sf... ₪6,700 → ₪6,500
-2026-02-03 10:08:43,791 - database_postgres - INFO - 💰 Price change detected: o6loadp9... ₪5,300 → ₪5,000
-2026-02-03 10:08:43,791 - database_postgres - INFO - 💰 Price change detected: c1epn8g2... ₪7,700 → ₪7,000
-2026-02-03 10:08:43,792 - database_postgres - INFO - 💰 Price change detected: w5rn6lw4... ₪2,800 → ₪2,700
-2026-02-03 10:08:43,792 - database_postgres - INFO - 💰 Price change detected: 8jzwxia8... ₪7,200 → ₪6,800
-2026-02-03 10:08:43,792 - database_postgres - INFO - 💰 Price change detected: n4ny3sc5... ₪2,600 → ₪2,500
-2026-02-03 10:08:43,792 - database_postgres - INFO - 💰 Price change detected: gfx0wn57... ₪5,000 → ₪3,500
-2026-02-03 10:08:43,793 - database_postgres - INFO - 💰 Price change detected: v12d8tlc... ₪7,950 → ₪7,850
-2026-02-03 10:08:43,793 - database_postgres - INFO - 💰 Price change detected: ffisibfw... ₪1,650 → ₪1,690
-2026-02-03 10:08:43,870 - database_postgres - INFO - 📈 Recorded 52 price history entries (new: 40, changes: 12)
-2026-02-03 10:08:43,870 - database_postgres - INFO - 💾 Batch saved: 500/1080 apartments
-2026-02-03 10:08:43,879 - database_postgres - INFO - 💰 Price change detected: zhslcsuz... ₪5,900 → ₪5,700
-2026-02-03 10:08:43,879 - database_postgres - INFO - 💰 Price change detected: l79eixx8... ₪5,400 → ₪5,200
-2026-02-03 10:08:43,879 - database_postgres - INFO - 💰 Price change detected: adrx40hx... ₪6,500 → ₪6,200
-2026-02-03 10:08:43,880 - database_postgres - INFO - 💰 Price change detected: fvi5v1r7... ₪3,700 → ₪3,500
-2026-02-03 10:08:43,880 - database_postgres - INFO - 💰 Price change detected: dht4u5d3... ₪4,700 → ₪4,500
-2026-02-03 10:08:43,880 - database_postgres - INFO - 💰 Price change detected: qt5unf5k... ₪23,000 → ₪25,000
-2026-02-03 10:08:43,881 - database_postgres - INFO - 💰 Price change detected: si4x997i... ₪3,900 → ₪3,800
-2026-02-03 10:08:43,881 - database_postgres - INFO - 💰 Price change detected: xcuosx1n... ₪11,000 → ₪11,500
-2026-02-03 10:08:43,881 - database_postgres - INFO - 💰 Price change detected: w4xudb1o... ₪7,000 → ₪6,800
-2026-02-03 10:08:43,881 - database_postgres - INFO - 💰 Price change detected: s2ewx80w... ₪8,550 → ₪8,500
-2026-02-03 10:08:43,881 - database_postgres - INFO - 💰 Price change detected: z99m1z5q... ₪6,450 → ₪6,850
-2026-02-03 10:08:43,881 - database_postgres - INFO - 💰 Price change detected: 2n77ap1u... ₪8,200 → ₪7,900
-2026-02-03 10:08:43,881 - database_postgres - INFO - 💰 Price change detected: s0ceudfp... ₪9,300 → ₪7,500
-2026-02-03 10:08:43,881 - database_postgres - INFO - 💰 Price change detected: 44a6ital... ₪4,500 → ₪4,250
-2026-02-03 10:08:43,881 - database_postgres - INFO - 💰 Price change detected: 3k0o66ev... ₪6,900 → ₪6,500
-2026-02-03 10:08:43,882 - database_postgres - INFO - 💰 Price change detected: kcin981q... ₪3,500 → ₪3,498
-2026-02-03 10:08:43,949 - database_postgres - INFO - 📈 Recorded 73 price history entries (new: 57, changes: 16)
-2026-02-03 10:08:43,949 - database_postgres - INFO - 💾 Batch saved: 1000/1080 apartments
-2026-02-03 10:08:43,951 - database_postgres - INFO - 💰 Price change detected: p3fsgevk... ₪7,200 → ₪7,190
-2026-02-03 10:08:43,951 - database_postgres - INFO - 💰 Price change detected: 0v8p3hpt... ₪1,100 → ₪900
-2026-02-03 10:08:43,951 - database_postgres - INFO - 💰 Price change detected: wf98cnpf... ₪3,000 → ₪2,900
-2026-02-03 10:08:43,951 - database_postgres - INFO - 💰 Price change detected: lcccsgil... ₪4,900 → ₪4,800
-2026-02-03 10:08:43,964 - database_postgres - INFO - 📈 Recorded 8 price history entries (new: 4, changes: 4)
-2026-02-03 10:08:43,964 - database_postgres - INFO - 💾 Batch saved: 1078/1080 apartments
-2026-02-03 10:08:44,024 - database_postgres - INFO - ✅ Committed 1078 apartments to PostgreSQL
-2026-02-03 10:08:44,024 - __main__ - INFO - 💾 SAVED 1078 apartments to DB (total saved: 3186)
-2026-02-03 10:08:44,025 - __main__ - INFO - 📊 Pages 78-80: +120 | Found: 3186 | Saved: 3186 | OK:81 Fail:0 | 2.4min
-2026-02-03 10:08:47,955 - __main__ - INFO - 📊 Pages 81-83: +120 | Found: 3306 | Saved: 3186 | OK:84 Fail:0 | 2.5min
-2026-02-03 10:08:54,730 - __main__ - INFO - 📊 Pages 84-86: +120 | Found: 3426 | Saved: 3186 | OK:87 Fail:0 | 2.6min
-2026-02-03 10:08:59,482 - __main__ - INFO - 📊 Pages 87-89: +120 | Found: 3546 | Saved: 3186 | OK:90 Fail:0 | 2.7min
-2026-02-03 10:09:04,269 - __main__ - INFO - 📊 Pages 90-92: +120 | Found: 3666 | Saved: 3186 | OK:93 Fail:0 | 2.8min
-2026-02-03 10:09:11,704 - __main__ - INFO - 📊 Pages 93-95: +120 | Found: 3786 | Saved: 3186 | OK:96 Fail:0 | 2.9min
-2026-02-03 10:09:15,897 - __main__ - INFO - 📊 Pages 96-98: +120 | Found: 3906 | Saved: 3186 | OK:99 Fail:0 | 3.0min
-2026-02-03 10:09:21,487 - __main__ - INFO - 📊 Pages 99-101: +120 | Found: 4026 | Saved: 3186 | OK:102 Fail:0 | 3.1min
-2026-02-03 10:09:26,552 - __main__ - INFO - 📊 Pages 102-104: +120 | Found: 4146 | Saved: 3186 | OK:105 Fail:0 | 3.2min
-2026-02-03 10:09:31,922 - database_postgres - INFO - 📋 Deduplicated: 1080 → 1009 unique apartments
-2026-02-03 10:09:32,096 - database_postgres - INFO - 💰 Price change detected: ase364xo... ₪3,350 → ₪3,050
-2026-02-03 10:09:32,096 - database_postgres - INFO - 💰 Price change detected: u5rylrn7... ₪7,500 → ₪7,400
-2026-02-03 10:09:32,096 - database_postgres - INFO - 💰 Price change detected: omnfmkv0... ₪2,900 → ₪2,800
-2026-02-03 10:09:32,096 - database_postgres - INFO - 💰 Price change detected: jq6ecasx... ₪7,000 → ₪6,500
-2026-02-03 10:09:32,097 - database_postgres - INFO - 💰 Price change detected: konllfw4... ₪7,700 → ₪7,200
-2026-02-03 10:09:32,097 - database_postgres - INFO - 💰 Price change detected: 9a1r9kmq... ₪4,500 → ₪4,600
-2026-02-03 10:09:32,097 - database_postgres - INFO - 💰 Price change detected: gto9dfvq... ₪4,300 → ₪4,200
-2026-02-03 10:09:32,097 - database_postgres - INFO - 💰 Price change detected: u0vt9hwk... ₪10,400 → ₪10,200
-2026-02-03 10:09:32,097 - database_postgres - INFO - 💰 Price change detected: 4k3xdibz... ₪4,000 → ₪3,950
-2026-02-03 10:09:32,097 - database_postgres - INFO - 💰 Price change detected: pory6twb... ₪7,700 → ₪7,600
-2026-02-03 10:09:32,097 - database_postgres - INFO - 💰 Price change detected: u7qcx7ci... ₪10,200 → ₪10,000
-2026-02-03 10:09:32,097 - database_postgres - INFO - 💰 Price change detected: 2pm0zw91... ₪2,800 → ₪2,700
-2026-02-03 10:09:32,097 - database_postgres - INFO - 💰 Price change detected: 7ol8igaz... ₪2,700 → ₪2,650
-2026-02-03 10:09:32,098 - database_postgres - INFO - 💰 Price change detected: 8vuqbwhx... ₪11,900 → ₪10,900
-2026-02-03 10:09:32,099 - database_postgres - INFO - 💰 Price change detected: akt0tz6f... ₪750 → ₪620
-2026-02-03 10:09:32,200 - database_postgres - INFO - 💰 Price change detected: 2uqz8glm... ₪6,300 → ₪6,000
-2026-02-03 10:09:32,200 - database_postgres - INFO - 💰 Price change detected: 0o8tlclc... ₪2,900 → ₪2,700
-2026-02-03 10:09:32,201 - database_postgres - INFO - 💰 Price change detected: 1pkn8fo9... ₪5,000 → ₪6,000
-2026-02-03 10:09:32,191 - database_postgres - INFO - 📈 Recorded 56 price history entries (new: 41, changes: 15)
-2026-02-03 10:09:32,201 - database_postgres - INFO - 💰 Price change detected: k25id0zf... ₪2,500 → ₪2,200
-2026-02-03 10:09:32,191 - database_postgres - INFO - 💾 Batch saved: 500/1080 apartments
-2026-02-03 10:09:32,201 - database_postgres - INFO - 💰 Price change detected: 1tajhptw... ₪10,000 → ₪9,000
-2026-02-03 10:09:32,199 - database_postgres - INFO - 💰 Price change detected: 7q5tj1um... ₪6,750 → ₪6,499
-2026-02-03 10:09:32,201 - database_postgres - INFO - 💰 Price change detected: 3b8pvgd7... ₪3,800 → ₪3,700
-2026-02-03 10:09:32,199 - database_postgres - INFO - 💰 Price change detected: quv3imtj... ₪3,300 → ₪2,750
-2026-02-03 10:09:32,201 - database_postgres - INFO - 💰 Price change detected: vkr3ggml... ₪3,700 → ₪3,500
-2026-02-03 10:09:32,200 - database_postgres - INFO - 💰 Price change detected: m4qyib... ₪13,500 → ₪12,900
-2026-02-03 10:09:32,202 - database_postgres - INFO - 💰 Price change detected: bbiwvyud... ₪9,900 → ₪9,800
-2026-02-03 10:09:32,200 - database_postgres - INFO - 💰 Price change detected: kp0h2087... ₪2,250 → ₪2,200
-2026-02-03 10:09:32,202 - database_postgres - INFO - 💰 Price change detected: jcc1yc72... ₪2,800 → ₪2,700
-2026-02-03 10:09:32,200 - database_postgres - INFO - 💰 Price change detected: bpywqb73... ₪2,800 → ₪2,600
-2026-02-03 10:09:32,200 - database_postgres - INFO - 💰 Price change detected: vd1tbi3z... ₪6,199 → ₪5,999
-2026-02-03 10:09:32,202 - database_postgres - INFO - 💰 Price change detected: 25yhhden... ₪4,400 → ₪4,100
-2026-02-03 10:09:32,200 - database_postgres - INFO - 💰 Price change detected: krf4kugc... ₪800 → ₪600
-2026-02-03 10:09:32,277 - database_postgres - INFO - 📈 Recorded 131 price history entries (new: 114, changes: 17)
-2026-02-03 10:09:32,277 - database_postgres - INFO - 💾 Batch saved: 1000/1080 apartments
-2026-02-03 10:09:32,282 - database_postgres - INFO - 📈 Recorded 1 price history entries (new: 1, changes: 0)
-2026-02-03 10:09:32,282 - database_postgres - INFO - 💾 Batch saved: 1009/1080 apartments
-2026-02-03 10:09:32,346 - database_postgres - INFO - ✅ Committed 1009 apartments to PostgreSQL
-2026-02-03 10:09:32,346 - __main__ - INFO - 💾 SAVED 1009 apartments to DB (total saved: 4195)
-2026-02-03 10:09:32,347 - __main__ - INFO - 📊 Pages 105-107: +120 | Found: 4195 | Saved: 4195 | OK:108 Fail:0 | 3.2min
-2026-02-03 10:09:37,214 - __main__ - INFO - 📊 Pages 108-110: +120 | Found: 4315 | Saved: 4195 | OK:111 Fail:0 | 3.3min
-2026-02-03 10:09:41,401 - __main__ - INFO - 📊 Pages 111-113: +120 | Found: 4435 | Saved: 4195 | OK:114 Fail:0 | 3.4min
-2026-02-03 10:09:47,579 - __main__ - INFO - 📊 Pages 114-116: +120 | Found: 4555 | Saved: 4195 | OK:117 Fail:0 | 3.5min
-2026-02-03 10:09:52,945 - __main__ - INFO - 📊 Pages 117-119: +120 | Found: 4675 | Saved: 4195 | OK:120 Fail:0 | 3.6min
-2026-02-03 10:09:59,699 - __main__ - INFO - 📊 Pages 120-122: +120 | Found: 4795 | Saved: 4195 | OK:123 Fail:0 | 3.7min
-2026-02-03 10:10:04,603 - __main__ - INFO - 📊 Pages 123-125: +120 | Found: 4915 | Saved: 4195 | OK:126 Fail:0 | 3.8min
+2026-02-03 15:04:09,062 - __main__ - INFO - 📋 Scraping region: South
+2026-02-03 15:04:09,076 - __main__ - INFO - 🔍 Monitoring mode for region: South
+2026-02-03 15:04:09,076 - __main__ - INFO - 🔍 Starting monitoring scrape from https://www.yad2.co.il/realestate/rent/south
+2026-02-03 15:04:09,076 - __main__ - INFO - 📊 Stop strategy: Will stop after 6 consecutive known listings
+2026-02-03 15:04:09,076 - __main__ - INFO - 📄 Page 1 (consecutive known: 0/6)
+2026-02-03 15:04:09,076 - __main__ - INFO - ⏳ Delay: 17.31s before page 1
+2026-02-03 15:04:26,390 - __main__ - INFO - 🌐 Fetching page 1
+2026-02-03 15:04:26,911 - __main__ - INFO - ✅ Page 1 fetched successfully
+2026-02-03 15:04:27,051 - __main__ - INFO - 🛑 Smart stop: 6 consecutive known listings reached!
+2026-02-03 15:04:27,052 - __main__ - INFO - 💾 Saved approximately 19 page requests!
+2026-02-03 15:04:27,069 - __main__ - INFO - ✅ Monitoring complete: 6 apartments from 1 pages
+2026-02-03 15:04:27,263 - __main__ - WARNING - ⚠️ Only 6 apartments found - skipping removal to avoid false positives (need 1000+)
+2026-02-03 15:04:27,277 - __main__ - INFO - 📊 Summary - New: 0, Price changes: 0, Removed: 0
+2026-02-03 15:04:27,290 - __main__ - INFO - 📋 Scraping region: East
+2026-02-03 15:04:27,304 - __main__ - INFO - 🔍 Monitoring mode for region: East
+2026-02-03 15:04:27,305 - __main__ - INFO - 🔍 Starting monitoring scrape from https://www.yad2.co.il/realestate/rent/east
+2026-02-03 15:04:27,305 - __main__ - INFO - 📊 Stop strategy: Will stop after 6 consecutive known listings
+2026-02-03 15:04:27,305 - __main__ - INFO - 📄 Page 1 (consecutive known: 0/6)
+2026-02-03 15:04:27,305 - __main__ - INFO - ⏳ Delay: 15.49s before page 1
+2026-02-03 15:04:42,831 - __main__ - INFO - 🌐 Fetching page 1
+2026-02-03 15:04:42,832 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:04:42] "GET /health HTTP/1.1" 200 -
+2026-02-03 15:04:43,166 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:04:43] "GET /api/apartments?limit=50000&include_inactive=1&include_price_history=1 HTTP/1.1" 200 -
+2026-02-03 15:04:43,668 - __main__ - INFO - ✅ Page 1 fetched successfully
+2026-02-03 15:04:43,801 - __main__ - INFO - 🛑 Smart stop: 6 consecutive known listings reached!
+2026-02-03 15:04:43,801 - __main__ - INFO - 💾 Saved approximately 19 page requests!
+2026-02-03 15:04:43,815 - __main__ - INFO - ✅ Monitoring complete: 6 apartments from 1 pages
+2026-02-03 15:04:44,040 - __main__ - WARNING - ⚠️ Only 6 apartments found - skipping removal to avoid false positives (need 1000+)
+2026-02-03 15:04:44,064 - __main__ - INFO - 📊 Summary - New: 0, Price changes: 0, Removed: 0
+2026-02-03 15:04:44,087 - __main__ - INFO - 📋 Scraping region: Jerusalem Area
+2026-02-03 15:04:44,103 - __main__ - INFO - 🔍 Monitoring mode for region: Jerusalem Area
+2026-02-03 15:04:44,103 - __main__ - INFO - 🔍 Starting monitoring scrape from https://www.yad2.co.il/realestate/rent/jerusalem-area
+2026-02-03 15:04:44,104 - __main__ - INFO - 📊 Stop strategy: Will stop after 6 consecutive known listings
+2026-02-03 15:04:44,104 - __main__ - INFO - 📄 Page 1 (consecutive known: 0/6)
+2026-02-03 15:04:44,104 - __main__ - INFO - ⏳ Delay: 21.79s before page 1
+2026-02-03 15:04:58,878 - web - INFO - Serving embedded dashboard
+2026-02-03 15:04:58,883 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:04:58] "GET / HTTP/1.1" 200 -
+2026-02-03 15:04:59,241 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:04:59] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:05:01,187 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:01] "GET /health HTTP/1.1" 200 -
+2026-02-03 15:05:01,436 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:01] "GET /api/apartments?limit=50000&include_inactive=1&include_price_history=1 HTTP/1.1" 200 -
+2026-02-03 15:05:05,889 - __main__ - INFO - 🌐 Fetching page 1
+2026-02-03 15:05:06,584 - __main__ - INFO - ✅ Page 1 fetched successfully
+2026-02-03 15:05:06,780 - __main__ - INFO - 🛑 Smart stop: 6 consecutive known listings reached!
+2026-02-03 15:05:06,780 - __main__ - INFO - 💾 Saved approximately 19 page requests!
+2026-02-03 15:05:06,796 - __main__ - INFO - ✅ Monitoring complete: 6 apartments from 1 pages
+2026-02-03 15:05:07,036 - __main__ - WARNING - ⚠️ Only 6 apartments found - skipping removal to avoid false positives (need 1000+)
+2026-02-03 15:05:07,052 - __main__ - INFO - 📊 Summary - New: 0, Price changes: 0, Removed: 0
+2026-02-03 15:05:07,071 - __main__ - INFO - 📋 Scraping region: Tel Aviv Area
+2026-02-03 15:05:07,089 - __main__ - INFO - 🔍 Monitoring mode for region: Tel Aviv Area
+2026-02-03 15:05:07,089 - __main__ - INFO - 🔍 Starting monitoring scrape from https://www.yad2.co.il/realestate/rent/tel-aviv-area
+2026-02-03 15:05:07,089 - __main__ - INFO - 📊 Stop strategy: Will stop after 6 consecutive known listings
+2026-02-03 15:05:07,089 - __main__ - INFO - 📄 Page 1 (consecutive known: 0/6)
+2026-02-03 15:05:07,089 - __main__ - INFO - ⏳ Delay: 20.65s before page 1
+2026-02-03 15:05:18,072 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:18] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:05:18,047 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:18] "POST /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:05:27,743 - __main__ - INFO - 🌐 Fetching page 1
+2026-02-03 15:05:28,315 - __main__ - INFO - ✅ Page 1 fetched successfully
+2026-02-03 15:05:28,469 - __main__ - INFO - 🛑 Smart stop: 6 consecutive known listings reached!
+2026-02-03 15:05:28,469 - __main__ - INFO - 💾 Saved approximately 19 page requests!
+2026-02-03 15:05:28,484 - __main__ - INFO - ✅ Monitoring complete: 6 apartments from 1 pages
+2026-02-03 15:05:28,710 - __main__ - WARNING - ⚠️ Only 6 apartments found - skipping removal to avoid false positives (need 1000+)
+2026-02-03 15:05:28,728 - __main__ - INFO - 📊 Summary - New: 0, Price changes: 0, Removed: 0
+2026-02-03 15:05:28,824 - __main__ - INFO - 📋 Scraping region: Center and Sharon
+2026-02-03 15:05:28,845 - __main__ - INFO - 🔍 Monitoring mode for region: Center and Sharon
+2026-02-03 15:05:28,845 - __main__ - INFO - 🔍 Starting monitoring scrape from https://www.yad2.co.il/realestate/rent/center-and-sharon
+2026-02-03 15:05:28,845 - __main__ - INFO - 📊 Stop strategy: Will stop after 6 consecutive known listings
+2026-02-03 15:05:28,845 - __main__ - INFO - 📄 Page 1 (consecutive known: 0/6)
+2026-02-03 15:05:28,845 - __main__ - INFO - ⏳ Delay: 21.41s before page 1
+2026-02-03 15:05:30,664 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:30] "DELETE /api/filter-presets/7 HTTP/1.1" 200 -
+2026-02-03 15:05:30,686 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:30] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:05:32,409 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:32] "DELETE /api/filter-presets/6 HTTP/1.1" 200 -
+2026-02-03 15:05:32,435 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:32] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:05:34,207 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:34] "DELETE /api/filter-presets/5 HTTP/1.1" 200 -
+2026-02-03 15:05:34,229 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:34] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:05:36,951 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:36] "DELETE /api/filter-presets/11 HTTP/1.1" 200 -
+2026-02-03 15:05:36,979 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:36] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:05:38,245 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:38] "DELETE /api/filter-presets/10 HTTP/1.1" 200 -
+2026-02-03 15:05:38,273 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:38] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:05:38,926 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:38] "GET /api/filter-presets/9 HTTP/1.1" 200 -
+2026-02-03 15:05:41,015 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:41] "DELETE /api/filter-presets/9 HTTP/1.1" 200 -
+2026-02-03 15:05:41,036 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:41] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:05:43,782 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:43] "DELETE /api/filter-presets/8 HTTP/1.1" 200 -
+2026-02-03 15:05:43,814 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:43] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:05:44,828 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:05:44] "GET /api/filter-presets/3 HTTP/1.1" 200 -
+2026-02-03 15:05:50,253 - __main__ - INFO - 🌐 Fetching page 1
+2026-02-03 15:05:50,731 - __main__ - INFO - ✅ Page 1 fetched successfully
+2026-02-03 15:05:50,895 - __main__ - INFO - 🛑 Smart stop: 6 consecutive known listings reached!
+2026-02-03 15:05:50,895 - __main__ - INFO - 💾 Saved approximately 19 page requests!
+2026-02-03 15:05:50,907 - __main__ - INFO - ✅ Monitoring complete: 6 apartments from 1 pages
+2026-02-03 15:05:51,106 - __main__ - WARNING - ⚠️ Only 6 apartments found - skipping removal to avoid false positives (need 1000+)
+2026-02-03 15:05:51,121 - __main__ - INFO - 📊 Summary - New: 0, Price changes: 0, Removed: 0
+2026-02-03 15:05:51,136 - __main__ - INFO - 📋 Scraping region: North and Valleys
+2026-02-03 15:05:51,149 - __main__ - INFO - 🔍 Monitoring mode for region: North and Valleys
+2026-02-03 15:05:51,149 - __main__ - INFO - 🔍 Starting monitoring scrape from https://www.yad2.co.il/realestate/rent/north-and-valleys
+2026-02-03 15:05:51,149 - __main__ - INFO - 📊 Stop strategy: Will stop after 6 consecutive known listings
+2026-02-03 15:05:51,149 - __main__ - INFO - 📄 Page 1 (consecutive known: 0/6)
+2026-02-03 15:05:51,149 - __main__ - INFO - ⏳ Delay: 20.53s before page 1
+2026-02-03 15:06:08,686 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:06:08] "POST /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:06:08,709 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:06:08] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:06:11,678 - __main__ - INFO - 🌐 Fetching page 1
+2026-02-03 15:06:12,324 - __main__ - INFO - ✅ Page 1 fetched successfully
+2026-02-03 15:06:12,453 - __main__ - INFO - 🛑 Smart stop: 6 consecutive known listings reached!
+2026-02-03 15:06:12,453 - __main__ - INFO - 💾 Saved approximately 19 page requests!
+2026-02-03 15:06:12,468 - __main__ - INFO - ✅ Monitoring complete: 6 apartments from 1 pages
+2026-02-03 15:06:12,681 - __main__ - WARNING - ⚠️ Only 6 apartments found - skipping removal to avoid false positives (need 1000+)
+2026-02-03 15:06:12,704 - __main__ - INFO - 📊 Summary - New: 0, Price changes: 0, Removed: 0
+2026-02-03 15:06:12,723 - __main__ - INFO - ✅ Cycle complete - New: 0, Changes: 0
+2026-02-03 15:06:12,723 - __main__ - INFO - ⏰ Next check: 16:24:19
+2026-02-03 15:06:12,723 - __main__ - INFO - 😴 Sleeping 78 minutes...
+2026-02-03 15:06:13,611 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:06:13] "DELETE /api/filter-presets/3 HTTP/1.1" 200 -
+2026-02-03 15:06:13,640 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:06:13] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:06:14,577 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:06:14] "GET /api/filter-presets/4 HTTP/1.1" 200 -
+2026-02-03 15:06:15,869 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:06:15] "GET /api/filter-presets/4 HTTP/1.1" 200 -
+2026-02-03 15:06:34,496 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:06:34] "POST /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:06:34,519 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:06:34] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:07:20,455 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:07:20] "DELETE /api/filter-presets/4 HTTP/1.1" 200 -
+2026-02-03 15:07:20,483 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:07:20] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:07:21,467 - web - INFO - Serving embedded dashboard
+2026-02-03 15:07:21,472 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:07:21] "GET / HTTP/1.1" 200 -
+2026-02-03 15:07:21,661 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:07:21] "GET /api/filter-presets HTTP/1.1" 200 -
+2026-02-03 15:07:21,666 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:07:21] "GET /favicon.ico HTTP/1.1" 404 -
+2026-02-03 15:07:23,545 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:07:23] "GET /health HTTP/1.1" 200 -
+2026-02-03 15:07:23,816 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:07:23] "GET /api/apartments?limit=50000&include_inactive=1&include_price_history=1 HTTP/1.1" 200 -
+2026-02-03 15:07:26,506 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:07:26] "GET /api/filter-presets/12 HTTP/1.1" 200 -
+2026-02-03 15:07:52,980 - werkzeug - INFO - 100.64.0.2 - - [03/Feb/2026 15:07:52] "GET /api/filter-presets/13 HTTP/1.1" 200 -
 
 
 web

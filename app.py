@@ -817,9 +817,18 @@ class Yad2Monitor:
                     # Check if apartment already exists in database
                     existing = self.db.get_apartment(apt['id'])
                     if existing:
-                        # Known listing
-                        consecutive_known += 1
-                        known_on_page += 1
+                        # Check if price changed - price changes should reset the counter
+                        existing_price = existing.get('price')
+                        new_price = apt.get('price')
+                        if existing_price != new_price:
+                            # Price changed - treat as "new" for smart-stop purposes
+                            consecutive_known = 0
+                            known_on_page += 1
+                            logger.debug(f"💰 Price change detected: {apt['id']} ({existing_price} -> {new_price})")
+                        else:
+                            # Known listing with same price
+                            consecutive_known += 1
+                            known_on_page += 1
 
                         # Check if we've hit the threshold
                         if consecutive_known >= CONSECUTIVE_KNOWN_THRESHOLD:
