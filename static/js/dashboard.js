@@ -82,17 +82,17 @@ function renderApartments(apartments) {
             }
         }
 
-        // Room color class
+        // Room color class (more rooms = better = green)
         let roomsClass = '';
         const rooms = apt.rooms || 0;
         if (rooms > 0 && rooms <= 2.5) {
-            roomsClass = 'rooms-small';
+            roomsClass = 'rooms-xlarge'; // Red - small apartments
         } else if (rooms >= 3 && rooms <= 3.5) {
-            roomsClass = 'rooms-medium';
+            roomsClass = 'rooms-large'; // Orange
         } else if (rooms >= 4 && rooms <= 4.5) {
-            roomsClass = 'rooms-large';
+            roomsClass = 'rooms-medium'; // Yellow
         } else if (rooms >= 5) {
-            roomsClass = 'rooms-xlarge';
+            roomsClass = 'rooms-small'; // Green - large apartments
         }
 
         return `
