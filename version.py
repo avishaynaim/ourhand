@@ -2,9 +2,10 @@
 Version information for OurHand Monitor
 """
 
-__version__ = "1.6.0"
+__version__ = "1.7.0"
 
 # Version History:
+# 1.7.0 - 2026-02-03: Add manual scrape trigger button + fix smart-stop for price changes
 # 1.6.0 - 2026-02-02: Full responsive redesign with Tailwind - fix all cutoff issues
 # 1.5.0 - 2026-02-02: Replace bar chart with line chart + add filtered stats to table view
 # 1.4.0 - 2026-02-02: Add median price statistic to dashboard
