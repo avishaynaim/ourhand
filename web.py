@@ -298,8 +298,15 @@ except ImportError:
 # JavaScript moved to static/js/dashboard.js
 
 
-def create_web_app(database, analytics=None, telegram_bot=None):
-    """Create and configure Flask application"""
+def create_web_app(database, analytics=None, telegram_bot=None, scrape_trigger=None):
+    """Create and configure Flask application
+
+    Args:
+        database: Database instance
+        analytics: Optional analytics instance
+        telegram_bot: Optional telegram bot instance
+        scrape_trigger: Optional threading.Event to trigger immediate scrape
+    """
     # Get absolute paths for templates and static directories
     base_dir = os.path.abspath(os.path.dirname(__file__))
     template_dir = os.path.join(base_dir, 'templates')
@@ -790,6 +797,24 @@ def create_web_app(database, analytics=None, telegram_bot=None):
                 'last_24h': scrape_stats
             }
         })
+
+    @app.route('/api/trigger-scrape', methods=['POST'])
+    @require_api_key
+    def trigger_scrape():
+        """Trigger an immediate scrape cycle (skip the sleep timer)"""
+        if scrape_trigger is None:
+            return jsonify({'error': 'Scrape trigger not available'}), 503
+
+        try:
+            scrape_trigger.set()
+            logger.info("⚡ Scrape triggered via API")
+            return jsonify({
+                'success': True,
+                'message': 'Scrape triggered! The next cycle will start immediately.'
+            })
+        except Exception as e:
+            logger.error(f"Failed to trigger scrape: {e}")
+            return jsonify({'error': str(e)}), 500
 
     # ============ API Routes ============
 
@@ -1463,8 +1488,8 @@ def create_web_app(database, analytics=None, telegram_bot=None):
     return app
 
 
-def run_web_server(database, analytics=None, telegram_bot=None, host='0.0.0.0', port=5000, debug=False):
+def run_web_server(database, analytics=None, telegram_bot=None, scrape_trigger=None, host='0.0.0.0', port=5000, debug=False):
     """Run the web server"""
-    app = create_web_app(database, analytics, telegram_bot)
+    app = create_web_app(database, analytics, telegram_bot, scrape_trigger)
     logger.info(f"Starting web server on {host}:{port}")
     app.run(host=host, port=port, debug=debug, threaded=True)

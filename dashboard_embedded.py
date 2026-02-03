@@ -27,6 +27,9 @@ def get_dashboard_html():
         ::-webkit-scrollbar-thumb { background: #667eea40; border-radius: 3px; }
         /* Smooth transitions for dark mode */
         * { transition: background-color 0.2s, border-color 0.2s, color 0.2s; }
+        /* Spin animation for trigger button */
+        .animate-spin { animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         /* Table styles - Responsive */
         .apt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; min-width: 800px; }
         .apt-table th { position: sticky; top: 0; z-index: 10; cursor: pointer; user-select: none;
@@ -116,6 +119,10 @@ def get_dashboard_html():
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl sm:text-3xl font-bold text-brand">🏠 Yad2 Monitor</h1>
         <div class="flex items-center gap-3">
+            <button onclick="triggerScrape()" id="scrape-btn"
+                class="px-3 py-1.5 text-sm rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium shadow flex items-center gap-1">
+                <span id="scrape-icon">🔄</span> סריקה עכשיו
+            </button>
             <span class="text-sm px-3 py-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium">v{{ version }}</span>
             <button onclick="toggleTheme()" id="theme-btn"
                 class="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center text-lg shadow-lg hover:opacity-80">
@@ -333,6 +340,44 @@ function toggleTheme() {
     const isDark = document.documentElement.classList.toggle('dark');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
     document.getElementById('theme-btn').textContent = isDark ? '☀️' : '🌙';
+}
+
+async function triggerScrape() {
+    const btn = document.getElementById('scrape-btn');
+    const icon = document.getElementById('scrape-icon');
+    const originalText = btn.innerHTML;
+
+    // Show loading state
+    btn.disabled = true;
+    btn.classList.add('opacity-50', 'cursor-not-allowed');
+    icon.classList.add('animate-spin');
+
+    try {
+        const res = await fetch('/api/trigger-scrape', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            btn.innerHTML = '✅ הסריקה התחילה!';
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }, 3000);
+        } else {
+            throw new Error(data.error || 'Failed to trigger scrape');
+        }
+    } catch (e) {
+        console.error('Trigger scrape error:', e);
+        btn.innerHTML = '❌ שגיאה';
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }, 3000);
+    }
 }
 
 function setViewMode(mode) {

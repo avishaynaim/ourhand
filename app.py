@@ -198,6 +198,9 @@ class Yad2Monitor:
     def __init__(self):
         logger.info("🚀 Initializing Enhanced Yad2Monitor (Full Israel Rentals)")
 
+        # Event to trigger immediate scrape (skip sleep)
+        self.scrape_trigger = threading.Event()
+
         # Initialize database with persistent storage support
         # get_database() auto-detects PostgreSQL (DATABASE_URL) or SQLite
         self.db = get_database()
@@ -958,10 +961,16 @@ class Yad2Monitor:
                 change['new_price']
             )
 
+    def trigger_immediate_scrape(self):
+        """Trigger an immediate scrape cycle (skip the sleep)"""
+        logger.info("⚡ Triggering immediate scrape...")
+        self.scrape_trigger.set()
+
     def start_web_server(self, port: int = 5000):
         """Start web server in background thread"""
         def run():
-            run_web_server(self.db, self.analytics, self.telegram_bot, port=port, debug=False)
+            run_web_server(self.db, self.analytics, self.telegram_bot,
+                          scrape_trigger=self.scrape_trigger, port=port, debug=False)
 
         self.web_thread = threading.Thread(target=run, daemon=True)
         self.web_thread.start()
@@ -1108,13 +1117,17 @@ class Yad2Monitor:
                     stats = self.db.get_scrape_stats(hours=24)
                     self.notifier.send_status_report(stats, self.delay_manager.current_multiplier)
 
-                # Wait for next cycle
+                # Wait for next cycle (can be interrupted by scrape_trigger)
                 interval = self.delay_manager.get_cycle_delay()
                 next_check = datetime.now() + timedelta(seconds=interval)
                 logger.info(f"⏰ Next check: {next_check.strftime('%H:%M:%S')}")
                 logger.info(f"😴 Sleeping {interval // 60} minutes...")
 
-                time.sleep(interval)
+                # Wait with timeout - can be interrupted by trigger_immediate_scrape()
+                triggered = self.scrape_trigger.wait(timeout=interval)
+                if triggered:
+                    logger.info("⚡ Immediate scrape triggered via dashboard!")
+                    self.scrape_trigger.clear()  # Reset for next time
 
             except KeyboardInterrupt:
                 logger.info("🛑 Stopping monitor...")
