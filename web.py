@@ -1149,19 +1149,34 @@ def create_web_app(database, analytics=None, telegram_bot=None):
         if not data or not data.get('name'):
             return jsonify({'error': 'name is required'}), 400
 
+        # Helper to convert empty strings to None
+        def empty_to_none(val):
+            if val == '' or val is None:
+                return None
+            return val
+
+        # Helper to convert to float or None
+        def to_float_or_none(val):
+            if val == '' or val is None:
+                return None
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return None
+
         try:
             name = sanitize_string_input(data['name'], 'name', max_length=100)
             preset_id = db.save_filter_preset(
                 name=name,
-                min_price=data.get('minPrice'),
-                max_price=data.get('maxPrice'),
-                min_rooms=data.get('minRooms'),
-                max_rooms=data.get('maxRooms'),
-                min_sqm=data.get('minSqm'),
-                max_sqm=data.get('maxSqm'),
-                city=data.get('city'),
-                neighborhood=data.get('neighborhood'),
-                sort_by=data.get('sortBy')
+                min_price=to_float_or_none(data.get('minPrice')),
+                max_price=to_float_or_none(data.get('maxPrice')),
+                min_rooms=to_float_or_none(data.get('minRooms')),
+                max_rooms=to_float_or_none(data.get('maxRooms')),
+                min_sqm=to_float_or_none(data.get('minSqm')),
+                max_sqm=to_float_or_none(data.get('maxSqm')),
+                city=empty_to_none(data.get('city')),
+                neighborhood=empty_to_none(data.get('neighborhood')),
+                sort_by=empty_to_none(data.get('sortBy'))
             )
             return jsonify({'id': preset_id, 'status': 'saved'})
         except ValidationError as e:

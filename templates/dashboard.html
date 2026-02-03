@@ -22,7 +22,7 @@
         </div>
 
         <div class="stats-grid" id="stats">
-            <div class="stat-card">
+            <div class="stat-card clickable" onclick="filterByStatCard('all')" title="הצג את כל הדירות">
                 <div class="stat-value" id="total-apartments">-</div>
                 <div class="stat-label">דירות פעילות</div>
             </div>
@@ -30,11 +30,11 @@
                 <div class="stat-value" id="avg-price">-</div>
                 <div class="stat-label">מחיר ממוצע</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card clickable" onclick="filterByStatCard('new')" title="הצג דירות חדשות">
                 <div class="stat-value" id="new-today">-</div>
                 <div class="stat-label">חדשות היום</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card clickable" onclick="filterByStatCard('price-drops')" title="הצג ירידות מחיר">
                 <div class="stat-value" id="price-changes">-</div>
                 <div class="stat-label">שינויי מחיר</div>
             </div>
@@ -99,6 +99,8 @@
                         <option value="rooms-asc">חדרים (מעט לרבה)</option>
                         <option value="rooms-desc">חדרים (רבה למעט)</option>
                         <option value="sqm-desc">מ"ר (גדול לקטן)</option>
+                        <option value="price-change-desc">ירידת מחיר (גדול לקטן)</option>
+                        <option value="price-change-asc">עליית מחיר (גדול לקטן)</option>
                     </select>
                 </div>
             </div>
@@ -116,9 +118,24 @@
                 </div>
             </div>
 
-            <ul class="apartment-list" id="apartment-list">
-                <li class="loading">טוען...</li>
-            </ul>
+            <div class="table-container">
+                <table class="apartment-table" id="apartment-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="title">כותרת</th>
+                            <th class="sortable" data-sort="location">מיקום</th>
+                            <th class="sortable" data-sort="rooms">חדרים</th>
+                            <th class="sortable" data-sort="sqm">מ"ר</th>
+                            <th class="sortable" data-sort="price">מחיר</th>
+                            <th class="sortable" data-sort="price-change">שינוי %</th>
+                            <th>פעולות</th>
+                        </tr>
+                    </thead>
+                    <tbody id="apartment-list">
+                        <tr><td colspan="7" class="loading">טוען...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <div id="favorites-tab" class="card hidden">

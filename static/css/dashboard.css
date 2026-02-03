@@ -68,6 +68,29 @@ h1 {
 
 .stat-card:hover { transform: translateY(-5px); }
 
+.stat-card.clickable {
+    cursor: pointer;
+}
+
+.stat-card.clickable:hover {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+}
+
+.stat-card.clickable:hover .stat-value,
+.stat-card.clickable:hover .stat-label {
+    color: white;
+}
+
+.stat-card.active {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+}
+
+.stat-card.active .stat-value,
+.stat-card.active .stat-label {
+    color: white;
+}
+
 .stat-value {
     font-size: 2.5em;
     font-weight: bold;
@@ -92,6 +115,114 @@ h1 {
     padding-bottom: 10px;
 }
 
+/* Table styles */
+.table-container {
+    overflow-x: auto;
+    margin-top: 15px;
+}
+
+.apartment-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95em;
+}
+
+.apartment-table th,
+.apartment-table td {
+    padding: 12px 10px;
+    text-align: right;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.apartment-table th {
+    background: var(--hover-bg);
+    font-weight: 600;
+    color: var(--text-color);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.apartment-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+}
+
+.apartment-table th.sortable:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.apartment-table th.sortable.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+.apartment-table th.sortable::after {
+    content: ' ⇅';
+    opacity: 0.5;
+    font-size: 0.8em;
+}
+
+.apartment-table th.sortable.asc::after {
+    content: ' ↑';
+    opacity: 1;
+}
+
+.apartment-table th.sortable.desc::after {
+    content: ' ↓';
+    opacity: 1;
+}
+
+.apartment-table tbody tr {
+    transition: background 0.2s;
+}
+
+.apartment-table tbody tr:hover {
+    background: var(--hover-bg);
+}
+
+.apartment-table .col-title {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.apartment-table .col-location {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+.apartment-table .col-price {
+    font-weight: bold;
+    color: var(--success-color);
+    white-space: nowrap;
+}
+
+.apartment-table .col-change {
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.apartment-table .col-change.down {
+    color: #28a745;
+}
+
+.apartment-table .col-change.up {
+    color: #dc3545;
+}
+
+.apartment-table .col-actions {
+    white-space: nowrap;
+}
+
+/* Legacy list styles - keep for favorites/price-drops tabs */
 .apartment-list { list-style: none; }
 
 .apartment-item {
@@ -232,6 +363,24 @@ h1 {
 
 .price-change-down { color: #28a745; }
 .price-change-up { color: #dc3545; }
+
+.price-drop-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #d4edda;
+    color: #155724;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 600;
+    margin-right: 8px;
+}
+
+[data-theme="dark"] .price-drop-badge {
+    background: #1e4620;
+    color: #90ee90;
+}
 
 .tabs {
     display: flex;
@@ -440,5 +589,22 @@ h1 {
     .toast {
         min-width: auto;
         max-width: calc(100vw - 40px);
+    }
+
+    /* Table responsive */
+    .apartment-table {
+        font-size: 0.85em;
+    }
+    .apartment-table th,
+    .apartment-table td {
+        padding: 8px 5px;
+    }
+    .apartment-table .col-title,
+    .apartment-table .col-location {
+        max-width: 100px;
+    }
+    .apartment-table .btn {
+        padding: 5px 10px;
+        font-size: 0.8em;
     }
 }

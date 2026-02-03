@@ -4,6 +4,7 @@ const API_BASE = '/api';
 let allApartments = [];
 let searchTimeout = null;
 let currentSearchQuery = '';
+let currentStatFilter = 'all'; // Track which stat card filter is active
 
 // XSS Protection: Escape HTML special characters
 function escapeHtml(text) {
@@ -39,7 +40,7 @@ async function loadStats() {
 }
 
 async function loadApartments() {
-    const data = await fetchData('/apartments');
+    const data = await fetchData('/apartments?include_price_history=1');
     if (data && data.apartments) {
         allApartments = data.apartments;
         populateAutocomplete();
@@ -47,25 +48,55 @@ async function loadApartments() {
     }
 }
 
+// Calculate price change percentage for an apartment
+function getPriceChangePercent(apt) {
+    if (!apt.price_history || apt.price_history.length < 2) {
+        return null;
+    }
+    const oldPrice = apt.price_history[0].price;
+    const newPrice = apt.price_history[apt.price_history.length - 1].price;
+    if (oldPrice === 0) return null;
+    return ((newPrice - oldPrice) / oldPrice * 100);
+}
+
 function renderApartments(apartments) {
-    const list = document.getElementById('apartment-list');
+    const tbody = document.getElementById('apartment-list');
     if (!apartments.length) {
-        list.innerHTML = '<li class="empty-state">אין דירות להצגה</li>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">אין דירות להצגה</td></tr>';
         return;
     }
-    list.innerHTML = apartments.map(apt => `
-        <li class="apartment-item">
-            <div>
-                <div class="apartment-title">${escapeHtml(apt.title) || 'ללא כותרת'}</div>
-                <div class="apartment-location">${escapeHtml(apt.street_address || apt.location)}</div>
-            </div>
-            <div>
-                <span class="apartment-price">₪${(apt.price || 0).toLocaleString()}</span>
-                <a href="${escapeHtml(apt.link)}" target="_blank" class="btn">צפייה</a>
-                <button class="btn btn-fav" onclick="toggleFavorite('${escapeHtml(apt.id)}')">⭐</button>
-            </div>
-        </li>
-    `).join('');
+    tbody.innerHTML = apartments.map(apt => {
+        // Calculate price change
+        const changePercent = getPriceChangePercent(apt);
+        let changeDisplay = '-';
+        let changeClass = '';
+        if (changePercent !== null) {
+            if (changePercent < 0) {
+                changeDisplay = `📉 ${Math.abs(changePercent).toFixed(1)}%-`;
+                changeClass = 'down';
+            } else if (changePercent > 0) {
+                changeDisplay = `📈 ${changePercent.toFixed(1)}%+`;
+                changeClass = 'up';
+            } else {
+                changeDisplay = '0%';
+            }
+        }
+
+        return `
+            <tr>
+                <td class="col-title" title="${escapeHtml(apt.title)}">${escapeHtml(apt.title) || 'ללא כותרת'}</td>
+                <td class="col-location" title="${escapeHtml(apt.street_address || apt.location || '')}">${escapeHtml(apt.street_address || apt.location || '-')}</td>
+                <td>${apt.rooms || '-'}</td>
+                <td>${apt.sqm || '-'}</td>
+                <td class="col-price">₪${(apt.price || 0).toLocaleString()}</td>
+                <td class="col-change ${changeClass}">${changeDisplay}</td>
+                <td class="col-actions">
+                    <a href="${escapeHtml(apt.link)}" target="_blank" class="btn">צפייה</a>
+                    <button class="btn btn-fav" onclick="toggleFavorite('${escapeHtml(apt.id)}')">⭐</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function filterApartments() {
@@ -80,6 +111,21 @@ function filterApartments() {
     const sortBy = document.getElementById('sort-by').value;
 
     let filtered = allApartments.filter(apt => {
+        // Stat card filter
+        if (currentStatFilter === 'price-drops') {
+            // Only show apartments with price drops
+            if (!apt.price_history || apt.price_history.length < 2) return false;
+            const oldPrice = apt.price_history[0].price;
+            const newPrice = apt.price_history[apt.price_history.length - 1].price;
+            if (newPrice >= oldPrice) return false;
+        } else if (currentStatFilter === 'new') {
+            // Only show apartments from last 7 days
+            const firstSeen = new Date(apt.first_seen);
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            if (firstSeen < weekAgo) return false;
+        }
+
         // Price filter
         if (apt.price < minPrice || apt.price > maxPrice) return false;
 
@@ -129,6 +175,26 @@ function filterApartments() {
         filtered.sort((a, b) => (b.rooms || 0) - (a.rooms || 0));
     } else if (sortBy === 'sqm-desc') {
         filtered.sort((a, b) => (b.sqm || 0) - (a.sqm || 0));
+    } else if (sortBy === 'price-change-desc') {
+        // Sort by price drop (biggest drops first, nulls last)
+        filtered.sort((a, b) => {
+            const changeA = getPriceChangePercent(a);
+            const changeB = getPriceChangePercent(b);
+            if (changeA === null && changeB === null) return 0;
+            if (changeA === null) return 1;
+            if (changeB === null) return -1;
+            return changeA - changeB; // More negative = bigger drop = first
+        });
+    } else if (sortBy === 'price-change-asc') {
+        // Sort by price increase (biggest increases first, nulls last)
+        filtered.sort((a, b) => {
+            const changeA = getPriceChangePercent(a);
+            const changeB = getPriceChangePercent(b);
+            if (changeA === null && changeB === null) return 0;
+            if (changeA === null) return 1;
+            if (changeB === null) return -1;
+            return changeB - changeA; // More positive = bigger increase = first
+        });
     } else {
         // Default: sort by date (newest first)
         filtered.sort((a, b) => {
@@ -262,6 +328,41 @@ function showTab(tabName) {
     else if (tabName === 'analytics') loadAnalytics();
 }
 
+// Filter by stat card click
+function filterByStatCard(filterType) {
+    currentStatFilter = filterType;
+
+    // Update active state on stat cards
+    document.querySelectorAll('.stat-card.clickable').forEach(card => {
+        card.classList.remove('active');
+    });
+
+    // Find and activate the clicked card
+    const cards = document.querySelectorAll('.stat-card.clickable');
+    cards.forEach(card => {
+        const onclick = card.getAttribute('onclick');
+        if (onclick && onclick.includes(`'${filterType}'`)) {
+            card.classList.add('active');
+        }
+    });
+
+    // Switch to apartments tab
+    showTab('apartments');
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('.tab').classList.add('active'); // First tab is apartments
+
+    // Apply filter
+    filterApartments();
+
+    // Show toast with filter info
+    const filterNames = {
+        'all': 'כל הדירות',
+        'new': 'דירות חדשות (שבוע אחרון)',
+        'price-drops': 'דירות עם ירידת מחיר'
+    };
+    showToast(`מציג: ${filterNames[filterType]}`, 'info', 2000);
+}
+
 // Search with debouncing
 function handleSearch() {
     const searchInput = document.getElementById('search-input');
@@ -319,6 +420,19 @@ function populateAutocomplete() {
         .join('');
 }
 
+// Helper to convert empty strings to null for API
+function emptyToNull(value) {
+    if (value === '' || value === undefined) return null;
+    return value;
+}
+
+// Helper to convert empty strings to null for numeric fields
+function emptyToNullNumber(value) {
+    if (value === '' || value === undefined || value === null) return null;
+    const num = parseFloat(value);
+    return isNaN(num) ? null : num;
+}
+
 // Save filters to database
 async function saveFilters() {
     const name = prompt('שם לפילטר:');
@@ -326,15 +440,15 @@ async function saveFilters() {
 
     const filters = {
         name: name,
-        minPrice: document.getElementById('min-price').value,
-        maxPrice: document.getElementById('max-price').value,
-        minRooms: document.getElementById('min-rooms').value,
-        maxRooms: document.getElementById('max-rooms').value,
-        minSqm: document.getElementById('min-sqm').value,
-        maxSqm: document.getElementById('max-sqm').value,
-        city: document.getElementById('city-filter').value,
-        neighborhood: document.getElementById('neighborhood-filter').value,
-        sortBy: document.getElementById('sort-by').value
+        minPrice: emptyToNullNumber(document.getElementById('min-price').value),
+        maxPrice: emptyToNullNumber(document.getElementById('max-price').value),
+        minRooms: emptyToNullNumber(document.getElementById('min-rooms').value),
+        maxRooms: emptyToNullNumber(document.getElementById('max-rooms').value),
+        minSqm: emptyToNullNumber(document.getElementById('min-sqm').value),
+        maxSqm: emptyToNullNumber(document.getElementById('max-sqm').value),
+        city: emptyToNull(document.getElementById('city-filter').value),
+        neighborhood: emptyToNull(document.getElementById('neighborhood-filter').value),
+        sortBy: emptyToNull(document.getElementById('sort-by').value)
     };
 
     try {
@@ -462,16 +576,70 @@ function clearFilters() {
     document.getElementById('sort-by').value = 'date';
     document.getElementById('search-input').value = '';
     currentSearchQuery = '';
+    currentStatFilter = 'all'; // Reset stat card filter
     document.getElementById('clear-search').style.display = 'none';
+
+    // Remove active state from stat cards
+    document.querySelectorAll('.stat-card.clickable').forEach(card => {
+        card.classList.remove('active');
+    });
 
     filterApartments();
     showToast('הפילטרים נוקו', 'info', 2000);
+}
+
+// Table header click sorting
+function initTableSorting() {
+    const headers = document.querySelectorAll('.apartment-table th.sortable');
+    headers.forEach(header => {
+        header.addEventListener('click', () => {
+            const sortKey = header.dataset.sort;
+            const sortSelect = document.getElementById('sort-by');
+
+            // Map header sort keys to select values
+            const sortMap = {
+                'title': 'date', // No title sort, use date
+                'location': 'date', // No location sort, use date
+                'rooms': 'rooms-desc',
+                'sqm': 'sqm-desc',
+                'price': 'price-asc',
+                'price-change': 'price-change-desc'
+            };
+
+            // Toggle between asc/desc if same column clicked
+            const currentSort = sortSelect.value;
+            let newSort = sortMap[sortKey];
+
+            if (sortKey === 'price') {
+                newSort = currentSort === 'price-asc' ? 'price-desc' : 'price-asc';
+            } else if (sortKey === 'rooms') {
+                newSort = currentSort === 'rooms-desc' ? 'rooms-asc' : 'rooms-desc';
+            } else if (sortKey === 'price-change') {
+                newSort = currentSort === 'price-change-desc' ? 'price-change-asc' : 'price-change-desc';
+            }
+
+            sortSelect.value = newSort;
+            filterApartments();
+
+            // Update header visual state
+            headers.forEach(h => {
+                h.classList.remove('active', 'asc', 'desc');
+            });
+            header.classList.add('active');
+            if (newSort.includes('-asc')) {
+                header.classList.add('asc');
+            } else if (newSort.includes('-desc')) {
+                header.classList.add('desc');
+            }
+        });
+    });
 }
 
 // Initial load
 loadStats();
 loadApartments();
 loadFilterPresets(); // Load saved filter presets from database
+initTableSorting(); // Initialize table header sorting
 
 // Refresh every 5 minutes
 setInterval(() => {
