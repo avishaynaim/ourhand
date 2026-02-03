@@ -593,16 +593,11 @@ function changePageSize() {
 function roomColor(rooms) {
     if (!rooms) return null;
     const r = parseFloat(rooms);
-    if (r <= 1.5) return { bg: '#6b7280', text: '#fff' };
-    if (r <= 2)   return { bg: '#8b5cf6', text: '#fff' };
-    if (r <= 2.5) return { bg: '#a78bfa', text: '#fff' };
-    if (r <= 3)   return { bg: '#3b82f6', text: '#fff' };
-    if (r <= 3.5) return { bg: '#06b6d4', text: '#fff' };
-    if (r <= 4)   return { bg: '#10b981', text: '#fff' };
-    if (r <= 4.5) return { bg: '#f59e0b', text: '#fff' };
-    if (r <= 5)   return { bg: '#ef4444', text: '#fff' };
-    if (r <= 5.5) return { bg: '#ec4899', text: '#fff' };
-    return              { bg: '#dc2626', text: '#fff' };
+    // Red for small (1-2.5), Orange (3-3.5), Yellow (4-4.5), Green (5+)
+    if (r <= 2.5) return { bg: '#ef4444', text: '#fff' };  // Red
+    if (r <= 3.5) return { bg: '#f97316', text: '#fff' };  // Orange
+    if (r <= 4.5) return { bg: '#eab308', text: '#fff' };  // Yellow
+    return              { bg: '#22c55e', text: '#fff' };   // Green (5+)
 }
 
 function buildingViz(floor, totalFloors) {
