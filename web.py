@@ -1236,6 +1236,173 @@ def create_web_app(database, analytics=None, telegram_bot=None, scrape_trigger=N
             logger.error(f"Error deleting filter preset: {e}", exc_info=True)
             return jsonify({'error': 'Failed to delete filter preset'}), 500
 
+    # ============ Dashboard Subscriptions API ============
+
+    @app.route('/api/subscriptions', methods=['GET'])
+    def get_subscriptions():
+        """Get all subscriptions, optionally filtered by chat_id"""
+        try:
+            chat_id = request.args.get('chat_id')
+            subscriptions = db.get_subscriptions(chat_id)
+            return jsonify(subscriptions)
+        except Exception as e:
+            logger.error(f"Error getting subscriptions: {e}", exc_info=True)
+            return jsonify({'error': 'Failed to get subscriptions'}), 500
+
+    @app.route('/api/subscriptions', methods=['POST'])
+    def create_subscription():
+        """Create a new Telegram subscription for price alerts"""
+        try:
+            data = request.get_json()
+
+            # Validate required fields
+            if not data.get('chat_id'):
+                return jsonify({'error': 'chat_id is required'}), 400
+            if not data.get('name'):
+                return jsonify({'error': 'name is required'}), 400
+
+            sub_id = db.create_subscription(
+                chat_id=str(data['chat_id']),
+                name=data['name'],
+                min_price=data.get('min_price'),
+                max_price=data.get('max_price'),
+                min_rooms=data.get('min_rooms'),
+                max_rooms=data.get('max_rooms'),
+                min_sqm=data.get('min_sqm'),
+                max_sqm=data.get('max_sqm'),
+                city=data.get('city'),
+                neighborhood=data.get('neighborhood'),
+                notify_new=data.get('notify_new', True),
+                notify_price_drop=data.get('notify_price_drop', True),
+                notify_price_increase=data.get('notify_price_increase', False)
+            )
+            return jsonify({'id': sub_id, 'status': 'created'}), 201
+        except Exception as e:
+            logger.error(f"Error creating subscription: {e}", exc_info=True)
+            return jsonify({'error': 'Failed to create subscription'}), 500
+
+    @app.route('/api/subscriptions/<int:sub_id>', methods=['DELETE'])
+    def delete_subscription(sub_id):
+        """Delete a subscription"""
+        try:
+            success = db.delete_subscription(sub_id)
+            if success:
+                return jsonify({'status': 'deleted'})
+            return jsonify({'error': 'Subscription not found'}), 404
+        except Exception as e:
+            logger.error(f"Error deleting subscription: {e}", exc_info=True)
+            return jsonify({'error': 'Failed to delete subscription'}), 500
+
+    @app.route('/api/subscriptions/<int:sub_id>/toggle', methods=['POST'])
+    def toggle_subscription(sub_id):
+        """Enable/disable a subscription"""
+        try:
+            data = request.get_json()
+            is_active = data.get('is_active', True)
+            success = db.toggle_subscription(sub_id, is_active)
+            if success:
+                return jsonify({'status': 'updated', 'is_active': is_active})
+            return jsonify({'error': 'Subscription not found'}), 404
+        except Exception as e:
+            logger.error(f"Error toggling subscription: {e}", exc_info=True)
+            return jsonify({'error': 'Failed to toggle subscription'}), 500
+
+    @app.route('/api/price-changes', methods=['GET'])
+    def get_price_changes():
+        """Get apartments with recent price changes"""
+        try:
+            hours = int(request.args.get('hours', 24))
+            filters = {
+                'min_price': request.args.get('min_price', type=float),
+                'max_price': request.args.get('max_price', type=float),
+                'min_rooms': request.args.get('min_rooms', type=float),
+                'max_rooms': request.args.get('max_rooms', type=float),
+                'min_sqm': request.args.get('min_sqm', type=int),
+                'max_sqm': request.args.get('max_sqm', type=int),
+                'city': request.args.get('city'),
+                'neighborhood': request.args.get('neighborhood')
+            }
+            # Remove None values
+            filters = {k: v for k, v in filters.items() if v is not None}
+
+            changes = db.get_recent_price_changes(hours, filters if filters else None)
+            return jsonify(changes)
+        except Exception as e:
+            logger.error(f"Error getting price changes: {e}", exc_info=True)
+            return jsonify({'error': 'Failed to get price changes'}), 500
+
+    @app.route('/api/subscriptions/send-now', methods=['POST'])
+    def send_subscription_alerts():
+        """Send Telegram alerts for recent price changes matching filters"""
+        try:
+            data = request.get_json()
+            chat_id = data.get('chat_id')
+            hours = data.get('hours', 24)
+            filters = {
+                'min_price': data.get('min_price'),
+                'max_price': data.get('max_price'),
+                'min_rooms': data.get('min_rooms'),
+                'max_rooms': data.get('max_rooms'),
+                'min_sqm': data.get('min_sqm'),
+                'max_sqm': data.get('max_sqm'),
+                'city': data.get('city'),
+                'neighborhood': data.get('neighborhood')
+            }
+            filters = {k: v for k, v in filters.items() if v is not None}
+
+            if not chat_id:
+                return jsonify({'error': 'chat_id is required'}), 400
+
+            # Get price changes matching filters
+            changes = db.get_recent_price_changes(hours, filters if filters else None)
+
+            if not changes:
+                return jsonify({'status': 'no_changes', 'message': 'No price changes found matching filters'})
+
+            # Send via Telegram
+            if telegram_bot:
+                sent_count = 0
+                for apt in changes:
+                    try:
+                        # Format message
+                        price_change = apt.get('price_change', 0)
+                        price_change_pct = apt.get('price_change_pct', 0)
+                        emoji = "📉" if price_change < 0 else "📈"
+
+                        message = f"{emoji} <b>שינוי מחיר</b>\n\n"
+                        message += f"📍 {apt.get('title', 'Unknown')}\n"
+                        if apt.get('city'):
+                            message += f"🏙️ {apt['city']}"
+                            if apt.get('neighborhood'):
+                                message += f", {apt['neighborhood']}"
+                            message += "\n"
+                        message += f"💰 ₪{apt.get('previous_price', 0):,.0f} → ₪{apt.get('price', 0):,.0f}\n"
+                        message += f"📊 {price_change_pct:+.1f}% ({price_change:+,.0f}₪)\n"
+                        if apt.get('rooms'):
+                            message += f"🛏️ {apt['rooms']} חדרים"
+                        if apt.get('sqm'):
+                            message += f" | 📏 {apt['sqm']} מ״ר"
+                        message += "\n"
+                        if apt.get('link'):
+                            message += f"\n🔗 <a href=\"{apt['link']}\">צפה במודעה</a>"
+
+                        telegram_bot.send_message(chat_id, message)
+                        sent_count += 1
+                    except Exception as e:
+                        logger.error(f"Error sending alert for apartment {apt.get('id')}: {e}")
+
+                return jsonify({
+                    'status': 'sent',
+                    'sent_count': sent_count,
+                    'total_changes': len(changes)
+                })
+            else:
+                return jsonify({'error': 'Telegram bot not configured'}), 500
+
+        except Exception as e:
+            logger.error(f"Error sending subscription alerts: {e}", exc_info=True)
+            return jsonify({'error': 'Failed to send alerts'}), 500
+
     @app.route('/api/export/csv')
     @require_api_key
     def export_csv():

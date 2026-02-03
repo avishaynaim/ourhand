@@ -953,6 +953,8 @@ class Yad2Monitor:
         """Send notifications for changes"""
         for apt in new_apartments:
             self.notifier.notify_new_apartment(apt)
+            # Also notify dashboard subscriptions for new apartments
+            self._notify_dashboard_subscriptions(apt, 'new')
 
         for change in price_changes:
             self.notifier.notify_price_change(
@@ -960,6 +962,87 @@ class Yad2Monitor:
                 change['old_price'],
                 change['new_price']
             )
+            # Also notify dashboard subscriptions for price changes
+            event_type = 'price_drop' if change['change'] < 0 else 'price_increase'
+            self._notify_dashboard_subscriptions(
+                change['apartment'],
+                event_type,
+                old_price=change['old_price'],
+                new_price=change['new_price'],
+                change=change['change'],
+                change_pct=change['change_pct']
+            )
+
+    def _notify_dashboard_subscriptions(self, apartment: Dict, event_type: str,
+                                        old_price=None, new_price=None,
+                                        change=None, change_pct=None):
+        """Send Telegram notifications to matching dashboard subscriptions"""
+        if not self.telegram_bot:
+            return
+
+        try:
+            # Get all matching subscriptions
+            matching_subs = self.db.get_matching_subscriptions(apartment, event_type)
+
+            if not matching_subs:
+                return
+
+            # Group by chat_id to avoid duplicate messages
+            notified_chats = set()
+
+            for sub in matching_subs:
+                chat_id = sub['chat_id']
+                if chat_id in notified_chats:
+                    continue
+
+                try:
+                    # Format message based on event type
+                    if event_type == 'new':
+                        emoji = "🆕"
+                        header = "דירה חדשה מתאימה לסינון שלך"
+                    elif event_type == 'price_drop':
+                        emoji = "📉"
+                        header = "ירידת מחיר!"
+                    else:
+                        emoji = "📈"
+                        header = "עליית מחיר"
+
+                    message = f"{emoji} <b>{header}</b>\n"
+                    message += f"📌 התראה: {sub['name']}\n\n"
+                    message += f"📍 {apartment.get('title', 'Unknown')}\n"
+
+                    if apartment.get('city'):
+                        message += f"🏙️ {apartment['city']}"
+                        if apartment.get('neighborhood'):
+                            message += f", {apartment['neighborhood']}"
+                        message += "\n"
+
+                    if event_type in ('price_drop', 'price_increase') and old_price and new_price:
+                        message += f"💰 ₪{old_price:,.0f} → ₪{new_price:,.0f}\n"
+                        message += f"📊 {change_pct:+.1f}% ({change:+,.0f}₪)\n"
+                    else:
+                        message += f"💰 ₪{apartment.get('price', 0):,.0f}\n"
+
+                    if apartment.get('rooms'):
+                        message += f"🛏️ {apartment['rooms']} חדרים"
+                    if apartment.get('sqm'):
+                        message += f" | 📏 {apartment['sqm']} מ״ר"
+                    if apartment.get('floor') is not None:
+                        message += f" | 🏢 קומה {apartment['floor']}"
+                    message += "\n"
+
+                    if apartment.get('link'):
+                        message += f"\n🔗 <a href=\"{apartment['link']}\">צפה במודעה</a>"
+
+                    self.telegram_bot.send_message(chat_id, message)
+                    notified_chats.add(chat_id)
+                    logger.info(f"📤 Sent {event_type} alert to subscription '{sub['name']}' (chat: {chat_id})")
+
+                except Exception as e:
+                    logger.error(f"Failed to send subscription alert to {chat_id}: {e}")
+
+        except Exception as e:
+            logger.error(f"Error in _notify_dashboard_subscriptions: {e}", exc_info=True)
 
     def trigger_immediate_scrape(self):
         """Trigger an immediate scrape cycle (skip the sleep)"""

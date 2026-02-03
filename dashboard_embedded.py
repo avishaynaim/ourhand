@@ -213,6 +213,106 @@ def get_dashboard_html():
         </div>
     </div>
 
+    <!-- Telegram Subscriptions -->
+    <div id="subscriptions-bar" class="bg-white dark:bg-gray-800 rounded-xl shadow p-3 mb-4">
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-brand font-semibold text-sm">📱 התראות טלגרם:</span>
+            <div id="subscriptions-list" class="flex flex-wrap gap-2"></div>
+            <button onclick="openSubscriptionModal()"
+                class="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">+ הרשמה להתראות</button>
+            <button onclick="sendPriceChangesNow()"
+                class="px-3 py-1.5 text-xs bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium">📤 שלח שינויי מחיר עכשיו</button>
+        </div>
+    </div>
+
+    <!-- Subscription Modal -->
+    <div id="subscription-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-brand">📱 הרשמה להתראות טלגרם</h3>
+                <button onclick="closeSubscriptionModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            <form id="subscription-form" onsubmit="submitSubscription(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">שם ההתראה</label>
+                        <input type="text" id="sub-name" required placeholder="למשל: דירות בתל אביב"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Chat ID (טלגרם)</label>
+                        <input type="text" id="sub-chat-id" required placeholder="הכנס Chat ID מטלגרם"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                        <p class="text-xs text-gray-500 mt-1">שלח /start לבוט @userinfobot כדי לקבל את ה-Chat ID שלך</p>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">סינון פעיל (יישמר עם ההרשמה):</p>
+                        <p id="sub-filter-summary" class="text-xs text-gray-500"></p>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="sub-notify-new" checked class="rounded">
+                            <span class="text-sm text-gray-700 dark:text-gray-300">🆕 דירות חדשות</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="sub-notify-drop" checked class="rounded">
+                            <span class="text-sm text-gray-700 dark:text-gray-300">📉 ירידות מחיר</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="sub-notify-increase" class="rounded">
+                            <span class="text-sm text-gray-700 dark:text-gray-300">📈 עליות מחיר</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button type="submit"
+                        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">✓ הרשם</button>
+                    <button type="button" onclick="closeSubscriptionModal()"
+                        class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">ביטול</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Send Now Modal -->
+    <div id="send-now-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-brand">📤 שלח שינויי מחיר</h3>
+                <button onclick="closeSendNowModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            <form id="send-now-form" onsubmit="submitSendNow(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Chat ID (טלגרם)</label>
+                        <input type="text" id="send-chat-id" required placeholder="הכנס Chat ID מטלגרם"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">שעות אחורה</label>
+                        <select id="send-hours" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                            <option value="1">שעה אחרונה</option>
+                            <option value="6">6 שעות</option>
+                            <option value="24" selected>24 שעות</option>
+                            <option value="48">48 שעות</option>
+                            <option value="168">שבוע</option>
+                        </select>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">סינון פעיל:</p>
+                        <p id="send-filter-summary" class="text-xs text-gray-500"></p>
+                    </div>
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button type="submit"
+                        class="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium">📤 שלח עכשיו</button>
+                    <button type="button" onclick="closeSendNowModal()"
+                        class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">ביטול</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- View Title + View Toggle -->
     <div class="flex items-center justify-between mb-4">
         <h2 id="view-title" class="text-lg sm:text-xl font-bold text-brand">🏢 כל הדירות</h2>
@@ -1496,7 +1596,232 @@ async function deleteSavedFilter(presetId) {
 
 loadAll();
 loadSavedFiltersFromDB();
+loadSubscriptions();
 setInterval(loadAll, 300000);
+
+// ===== TELEGRAM SUBSCRIPTIONS =====
+let subscriptionsCache = [];
+
+async function loadSubscriptions() {
+    try {
+        const res = await fetch('/api/subscriptions');
+        if (!res.ok) { console.error('Failed to load subscriptions'); return; }
+        subscriptionsCache = await res.json();
+        renderSubscriptions();
+    } catch(e) {
+        console.error('Error loading subscriptions:', e);
+    }
+}
+
+function renderSubscriptions() {
+    const list = document.getElementById('subscriptions-list');
+    if (!subscriptionsCache.length) {
+        list.innerHTML = '<span class="text-xs text-gray-400">אין התראות פעילות</span>';
+        return;
+    }
+    list.innerHTML = subscriptionsCache.map(s =>
+        '<div class="flex items-center gap-1 bg-green-100 dark:bg-green-900/30 rounded-lg px-2 py-1">' +
+        '<span class="text-xs text-green-700 dark:text-green-300 font-medium">' + s.name + '</span>' +
+        '<button onclick="deleteSubscription('+s.id+')" class="text-xs text-gray-400 hover:text-red-500 px-1" title="מחק">✕</button>' +
+        '</div>'
+    ).join('');
+}
+
+function getCurrentFilterSummary() {
+    const parts = [];
+    const minPrice = document.getElementById('tf-price-min')?.value;
+    const maxPrice = document.getElementById('tf-price-max')?.value;
+    const minSqm = document.getElementById('tf-sqm-min')?.value;
+    const maxSqm = document.getElementById('tf-sqm-max')?.value;
+
+    if (minPrice || maxPrice) {
+        parts.push('מחיר: ' + (minPrice || '0') + '-' + (maxPrice || '∞') + '₪');
+    }
+    if (tableColFilters.rooms && tableColFilters.rooms.length) {
+        parts.push('חדרים: ' + tableColFilters.rooms.join(', '));
+    }
+    if (minSqm || maxSqm) {
+        parts.push('מ״ר: ' + (minSqm || '0') + '-' + (maxSqm || '∞'));
+    }
+    if (tableColFilters.city && tableColFilters.city.length) {
+        parts.push('עיר: ' + tableColFilters.city.join(', '));
+    }
+    if (tableColFilters.neighborhood && tableColFilters.neighborhood.length) {
+        parts.push('שכונה: ' + tableColFilters.neighborhood.join(', '));
+    }
+
+    return parts.length ? parts.join(' | ') : 'ללא סינון (כל הדירות)';
+}
+
+function openSubscriptionModal() {
+    document.getElementById('subscription-modal').classList.remove('hidden');
+    document.getElementById('sub-filter-summary').textContent = getCurrentFilterSummary();
+    // Load saved chat ID from localStorage
+    const savedChatId = localStorage.getItem('telegram_chat_id');
+    if (savedChatId) {
+        document.getElementById('sub-chat-id').value = savedChatId;
+    }
+}
+
+function closeSubscriptionModal() {
+    document.getElementById('subscription-modal').classList.add('hidden');
+}
+
+async function submitSubscription(event) {
+    event.preventDefault();
+
+    const chatId = document.getElementById('sub-chat-id').value.trim();
+    const name = document.getElementById('sub-name').value.trim();
+
+    if (!chatId || !name) {
+        alert('יש למלא את כל השדות');
+        return;
+    }
+
+    // Save chat ID for future use
+    localStorage.setItem('telegram_chat_id', chatId);
+
+    // Get current filter values (matching saveCurrentFilter logic)
+    let minRooms = null, maxRooms = null;
+    if (tableColFilters.rooms && tableColFilters.rooms.length > 0) {
+        const roomNums = tableColFilters.rooms.map(r => parseFloat(r));
+        minRooms = Math.min(...roomNums);
+        maxRooms = Math.max(...roomNums);
+    }
+
+    const data = {
+        chat_id: chatId,
+        name: name,
+        min_price: parseFloat(document.getElementById('tf-price-min')?.value) || null,
+        max_price: parseFloat(document.getElementById('tf-price-max')?.value) || null,
+        min_rooms: minRooms,
+        max_rooms: maxRooms,
+        min_sqm: parseInt(document.getElementById('tf-sqm-min')?.value) || null,
+        max_sqm: parseInt(document.getElementById('tf-sqm-max')?.value) || null,
+        city: tableColFilters.city && tableColFilters.city.length ? tableColFilters.city[0] : null,
+        neighborhood: tableColFilters.neighborhood && tableColFilters.neighborhood.length ? tableColFilters.neighborhood[0] : null,
+        notify_new: document.getElementById('sub-notify-new').checked,
+        notify_price_drop: document.getElementById('sub-notify-drop').checked,
+        notify_price_increase: document.getElementById('sub-notify-increase').checked
+    };
+
+    try {
+        const res = await fetch('/api/subscriptions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (res.ok) {
+            closeSubscriptionModal();
+            await loadSubscriptions();
+            alert('✓ נרשמת להתראות בהצלחה!');
+        } else {
+            const err = await res.json();
+            alert('שגיאה: ' + (err.error || 'Failed to subscribe'));
+        }
+    } catch(e) {
+        console.error('Error subscribing:', e);
+        alert('שגיאה בהרשמה');
+    }
+}
+
+async function deleteSubscription(subId) {
+    if (!confirm('למחוק התראה זו?')) return;
+
+    try {
+        const res = await fetch('/api/subscriptions/' + subId, { method: 'DELETE' });
+        if (res.ok) {
+            await loadSubscriptions();
+        } else {
+            alert('שגיאה במחיקת ההתראה');
+        }
+    } catch(e) {
+        console.error('Error deleting subscription:', e);
+    }
+}
+
+function sendPriceChangesNow() {
+    document.getElementById('send-now-modal').classList.remove('hidden');
+    document.getElementById('send-filter-summary').textContent = getCurrentFilterSummary();
+    // Load saved chat ID from localStorage
+    const savedChatId = localStorage.getItem('telegram_chat_id');
+    if (savedChatId) {
+        document.getElementById('send-chat-id').value = savedChatId;
+    }
+}
+
+function closeSendNowModal() {
+    document.getElementById('send-now-modal').classList.add('hidden');
+}
+
+async function submitSendNow(event) {
+    event.preventDefault();
+
+    const chatId = document.getElementById('send-chat-id').value.trim();
+    const hours = parseInt(document.getElementById('send-hours').value);
+
+    if (!chatId) {
+        alert('יש להזין Chat ID');
+        return;
+    }
+
+    // Save chat ID for future use
+    localStorage.setItem('telegram_chat_id', chatId);
+
+    // Get current filter values (matching saveCurrentFilter logic)
+    let minRooms = null, maxRooms = null;
+    if (tableColFilters.rooms && tableColFilters.rooms.length > 0) {
+        const roomNums = tableColFilters.rooms.map(r => parseFloat(r));
+        minRooms = Math.min(...roomNums);
+        maxRooms = Math.max(...roomNums);
+    }
+
+    const data = {
+        chat_id: chatId,
+        hours: hours,
+        min_price: parseFloat(document.getElementById('tf-price-min')?.value) || null,
+        max_price: parseFloat(document.getElementById('tf-price-max')?.value) || null,
+        min_rooms: minRooms,
+        max_rooms: maxRooms,
+        min_sqm: parseInt(document.getElementById('tf-sqm-min')?.value) || null,
+        max_sqm: parseInt(document.getElementById('tf-sqm-max')?.value) || null,
+        city: tableColFilters.city && tableColFilters.city.length ? tableColFilters.city[0] : null,
+        neighborhood: tableColFilters.neighborhood && tableColFilters.neighborhood.length ? tableColFilters.neighborhood[0] : null
+    };
+
+    try {
+        const btn = event.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.textContent = '⏳ שולח...';
+
+        const res = await fetch('/api/subscriptions/send-now', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await res.json();
+
+        if (res.ok) {
+            closeSendNowModal();
+            if (result.status === 'no_changes') {
+                alert('לא נמצאו שינויי מחיר בטווח הזמן והסינון שנבחרו');
+            } else {
+                alert('✓ נשלחו ' + result.sent_count + ' הודעות מתוך ' + result.total_changes + ' שינויי מחיר');
+            }
+        } else {
+            alert('שגיאה: ' + (result.error || 'Failed to send'));
+        }
+    } catch(e) {
+        console.error('Error sending:', e);
+        alert('שגיאה בשליחה');
+    } finally {
+        const btn = event.target.querySelector('button[type="submit"]');
+        btn.disabled = false;
+        btn.textContent = '📤 שלח עכשיו';
+    }
+}
 </script>
 </body>
 </html>'''

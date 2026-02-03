@@ -352,6 +352,28 @@ class PostgreSQLDatabase:
                 )
             ''')
 
+            # Dashboard subscriptions - for sending Telegram notifications based on filters
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS dashboard_subscriptions (
+                    id SERIAL PRIMARY KEY,
+                    chat_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    min_price REAL,
+                    max_price REAL,
+                    min_rooms REAL,
+                    max_rooms REAL,
+                    min_sqm REAL,
+                    max_sqm REAL,
+                    city TEXT,
+                    neighborhood TEXT,
+                    notify_new BOOLEAN DEFAULT TRUE,
+                    notify_price_drop BOOLEAN DEFAULT TRUE,
+                    notify_price_increase BOOLEAN DEFAULT FALSE,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
             # Create indexes for performance
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_apartments_price ON apartments(price)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_apartments_location ON apartments(location)')
@@ -364,6 +386,8 @@ class PostgreSQLDatabase:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_ignored_chat ON user_ignored(chat_id)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_filters_chat ON user_filters(chat_id)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_telegram_users_active ON telegram_users(is_active)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_dashboard_subs_chat ON dashboard_subscriptions(chat_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_dashboard_subs_active ON dashboard_subscriptions(is_active)')
 
             logger.info("✅ PostgreSQL tables initialized successfully")
 
@@ -1157,6 +1181,188 @@ class PostgreSQLDatabase:
             cursor = conn.cursor()
             cursor.execute('DELETE FROM filter_presets WHERE id = %s', (preset_id,))
             return cursor.rowcount > 0
+
+    # ============ Dashboard Subscriptions ============
+
+    def create_subscription(self, chat_id: str, name: str, min_price=None, max_price=None,
+                           min_rooms=None, max_rooms=None, min_sqm=None, max_sqm=None,
+                           city=None, neighborhood=None, notify_new=True,
+                           notify_price_drop=True, notify_price_increase=False) -> int:
+        """Create a new dashboard subscription for Telegram notifications"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO dashboard_subscriptions
+                (chat_id, name, min_price, max_price, min_rooms, max_rooms,
+                 min_sqm, max_sqm, city, neighborhood, notify_new,
+                 notify_price_drop, notify_price_increase)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            ''', (chat_id, name, min_price, max_price, min_rooms, max_rooms,
+                  min_sqm, max_sqm, city, neighborhood, notify_new,
+                  notify_price_drop, notify_price_increase))
+            return cursor.fetchone()[0]
+
+    def get_subscriptions(self, chat_id: str = None) -> List[Dict]:
+        """Get all subscriptions, optionally filtered by chat_id"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            if chat_id:
+                cursor.execute('''
+                    SELECT * FROM dashboard_subscriptions
+                    WHERE chat_id = %s AND is_active = TRUE
+                    ORDER BY created_at DESC
+                ''', (chat_id,))
+            else:
+                cursor.execute('''
+                    SELECT * FROM dashboard_subscriptions
+                    WHERE is_active = TRUE
+                    ORDER BY created_at DESC
+                ''')
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_subscription(self, sub_id: int) -> Dict:
+        """Get a specific subscription by ID"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute('SELECT * FROM dashboard_subscriptions WHERE id = %s', (sub_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def delete_subscription(self, sub_id: int) -> bool:
+        """Delete a subscription"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM dashboard_subscriptions WHERE id = %s', (sub_id,))
+            return cursor.rowcount > 0
+
+    def toggle_subscription(self, sub_id: int, is_active: bool) -> bool:
+        """Enable/disable a subscription"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE dashboard_subscriptions SET is_active = %s WHERE id = %s
+            ''', (is_active, sub_id))
+            return cursor.rowcount > 0
+
+    def get_matching_subscriptions(self, apartment: Dict, event_type: str = 'price_drop') -> List[Dict]:
+        """
+        Find all active subscriptions that match the given apartment.
+        event_type: 'new', 'price_drop', or 'price_increase'
+        """
+        subscriptions = self.get_subscriptions()
+        matching = []
+
+        for sub in subscriptions:
+            # Check event type notification preference
+            if event_type == 'new' and not sub.get('notify_new', True):
+                continue
+            if event_type == 'price_drop' and not sub.get('notify_price_drop', True):
+                continue
+            if event_type == 'price_increase' and not sub.get('notify_price_increase', False):
+                continue
+
+            # Check price filter
+            apt_price = apartment.get('price')
+            if apt_price:
+                if sub.get('min_price') and apt_price < sub['min_price']:
+                    continue
+                if sub.get('max_price') and apt_price > sub['max_price']:
+                    continue
+
+            # Check rooms filter
+            apt_rooms = apartment.get('rooms')
+            if apt_rooms:
+                if sub.get('min_rooms') and apt_rooms < sub['min_rooms']:
+                    continue
+                if sub.get('max_rooms') and apt_rooms > sub['max_rooms']:
+                    continue
+
+            # Check sqm filter
+            apt_sqm = apartment.get('sqm')
+            if apt_sqm:
+                if sub.get('min_sqm') and apt_sqm < sub['min_sqm']:
+                    continue
+                if sub.get('max_sqm') and apt_sqm > sub['max_sqm']:
+                    continue
+
+            # Check city filter (case-insensitive partial match)
+            if sub.get('city'):
+                apt_city = apartment.get('city', '') or ''
+                if sub['city'].lower() not in apt_city.lower():
+                    continue
+
+            # Check neighborhood filter (case-insensitive partial match)
+            if sub.get('neighborhood'):
+                apt_neighborhood = apartment.get('neighborhood', '') or ''
+                if sub['neighborhood'].lower() not in apt_neighborhood.lower():
+                    continue
+
+            # All filters passed
+            matching.append(sub)
+
+        return matching
+
+    def get_recent_price_changes(self, hours: int = 24, filters: Dict = None) -> List[Dict]:
+        """
+        Get apartments with price changes in the last N hours.
+        Optionally filter by price/rooms/city/neighborhood.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            # Build query with filters
+            query = '''
+                SELECT DISTINCT a.*, ph.price as old_price, ph.recorded_at as price_change_date,
+                       (SELECT price FROM price_history
+                        WHERE apartment_id = a.id
+                        ORDER BY recorded_at DESC LIMIT 1 OFFSET 1) as previous_price
+                FROM apartments a
+                JOIN price_history ph ON a.id = ph.apartment_id
+                WHERE ph.recorded_at >= NOW() - INTERVAL '%s hours'
+                  AND a.is_active = 1
+            '''
+            params = [hours]
+
+            if filters:
+                if filters.get('min_price'):
+                    query += ' AND a.price >= %s'
+                    params.append(filters['min_price'])
+                if filters.get('max_price'):
+                    query += ' AND a.price <= %s'
+                    params.append(filters['max_price'])
+                if filters.get('min_rooms'):
+                    query += ' AND a.rooms >= %s'
+                    params.append(filters['min_rooms'])
+                if filters.get('max_rooms'):
+                    query += ' AND a.rooms <= %s'
+                    params.append(filters['max_rooms'])
+                if filters.get('min_sqm'):
+                    query += ' AND a.sqm >= %s'
+                    params.append(filters['min_sqm'])
+                if filters.get('max_sqm'):
+                    query += ' AND a.sqm <= %s'
+                    params.append(filters['max_sqm'])
+                if filters.get('city'):
+                    query += ' AND LOWER(a.city) LIKE %s'
+                    params.append(f"%{filters['city'].lower()}%")
+                if filters.get('neighborhood'):
+                    query += ' AND LOWER(a.neighborhood) LIKE %s'
+                    params.append(f"%{filters['neighborhood'].lower()}%")
+
+            query += ' ORDER BY ph.recorded_at DESC'
+
+            cursor.execute(query, params)
+            results = []
+            for row in cursor.fetchall():
+                apt = dict(row)
+                # Calculate price change
+                if apt.get('previous_price') and apt.get('price'):
+                    apt['price_change'] = apt['price'] - apt['previous_price']
+                    apt['price_change_pct'] = (apt['price_change'] / apt['previous_price']) * 100
+                results.append(apt)
+
+            return results
 
     # ============ Export Methods ============
 
