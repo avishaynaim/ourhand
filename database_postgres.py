@@ -348,19 +348,9 @@ class PostgreSQLDatabase:
                     city TEXT,
                     neighborhood TEXT,
                     sort_by TEXT,
-                    rooms TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
-
-            # Add rooms column if missing (migration for existing DBs)
-            cursor.execute("""
-                SELECT column_name FROM information_schema.columns
-                WHERE table_name = 'filter_presets' AND column_name = 'rooms'
-            """)
-            if not cursor.fetchone():
-                cursor.execute("ALTER TABLE filter_presets ADD COLUMN rooms TEXT")
-                logger.info("✅ Added rooms column to filter_presets table")
 
             # Create indexes for performance
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_apartments_price ON apartments(price)')
@@ -1133,18 +1123,17 @@ class PostgreSQLDatabase:
 
     def save_filter_preset(self, name: str, min_price=None, max_price=None,
                           min_rooms=None, max_rooms=None, min_sqm=None,
-                          max_sqm=None, city=None, neighborhood=None, sort_by=None,
-                          rooms=None) -> int:
+                          max_sqm=None, city=None, neighborhood=None, sort_by=None) -> int:
         """Save a complete filter preset"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO filter_presets (name, min_price, max_price, min_rooms, max_rooms,
-                                          min_sqm, max_sqm, city, neighborhood, sort_by, rooms)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                          min_sqm, max_sqm, city, neighborhood, sort_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (name, min_price, max_price, min_rooms, max_rooms,
-                  min_sqm, max_sqm, city, neighborhood, sort_by, rooms))
+                  min_sqm, max_sqm, city, neighborhood, sort_by))
             return cursor.fetchone()[0]
 
     def get_filter_presets(self) -> List[Dict]:

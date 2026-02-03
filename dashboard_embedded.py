@@ -1341,12 +1341,21 @@ async function saveCurrentFilter() {
     const name = prompt('שם הפילטר:');
     if (!name) return;
 
+    // Convert rooms array to min/max
+    let minRooms = null, maxRooms = null;
+    if (tableColFilters.rooms && tableColFilters.rooms.length > 0) {
+        const roomNums = tableColFilters.rooms.map(r => parseFloat(r));
+        minRooms = Math.min(...roomNums);
+        maxRooms = Math.max(...roomNums);
+    }
+
     // Collect filter values
     const filterData = {
         name: name,
         city: tableColFilters.city ? JSON.stringify(tableColFilters.city) : null,
         neighborhood: tableColFilters.neighborhood ? JSON.stringify(tableColFilters.neighborhood) : null,
-        rooms: tableColFilters.rooms ? JSON.stringify(tableColFilters.rooms) : null,
+        minRooms: minRooms,
+        maxRooms: maxRooms,
         minPrice: document.getElementById('tf-price-min')?.value || null,
         maxPrice: document.getElementById('tf-price-max')?.value || null,
         minSqm: document.getElementById('tf-sqm-min')?.value || null,
@@ -1382,7 +1391,14 @@ async function loadSavedFilter(presetId) {
         // Load from preset
         if (preset.city) tableColFilters.city = JSON.parse(preset.city);
         if (preset.neighborhood) tableColFilters.neighborhood = JSON.parse(preset.neighborhood);
-        if (preset.rooms) tableColFilters.rooms = JSON.parse(preset.rooms);
+
+        // Convert min_rooms/max_rooms back to rooms array
+        if (preset.min_rooms != null || preset.max_rooms != null) {
+            const minR = preset.min_rooms || 1;
+            const maxR = preset.max_rooms || 10;
+            // Filter uniqueRooms to get rooms in range
+            tableColFilters.rooms = uniqueRooms.filter(r => r >= minR && r <= maxR).map(String);
+        }
 
         // Rebuild table
         document.getElementById('apt-container').innerHTML = '';

@@ -1176,8 +1176,7 @@ def create_web_app(database, analytics=None, telegram_bot=None):
                 max_sqm=to_float_or_none(data.get('maxSqm')),
                 city=empty_to_none(data.get('city')),
                 neighborhood=empty_to_none(data.get('neighborhood')),
-                sort_by=empty_to_none(data.get('sortBy')),
-                rooms=empty_to_none(data.get('rooms'))
+                sort_by=empty_to_none(data.get('sortBy'))
             )
             return jsonify({'id': preset_id, 'status': 'saved'})
         except ValidationError as e:
