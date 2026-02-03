@@ -82,11 +82,24 @@ function renderApartments(apartments) {
             }
         }
 
+        // Room color class
+        let roomsClass = '';
+        const rooms = apt.rooms || 0;
+        if (rooms > 0 && rooms <= 2.5) {
+            roomsClass = 'rooms-small';
+        } else if (rooms >= 3 && rooms <= 3.5) {
+            roomsClass = 'rooms-medium';
+        } else if (rooms >= 4 && rooms <= 4.5) {
+            roomsClass = 'rooms-large';
+        } else if (rooms >= 5) {
+            roomsClass = 'rooms-xlarge';
+        }
+
         return `
             <tr>
                 <td class="col-title" title="${escapeHtml(apt.title)}">${escapeHtml(apt.title) || 'ללא כותרת'}</td>
                 <td class="col-location" title="${escapeHtml(apt.street_address || apt.location || '')}">${escapeHtml(apt.street_address || apt.location || '-')}</td>
-                <td>${apt.rooms || '-'}</td>
+                <td class="col-rooms ${roomsClass}">${apt.rooms || '-'}</td>
                 <td>${apt.sqm || '-'}</td>
                 <td class="col-price">₪${(apt.price || 0).toLocaleString()}</td>
                 <td class="col-change ${changeClass}">${changeDisplay}</td>

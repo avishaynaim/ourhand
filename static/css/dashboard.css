@@ -218,6 +218,54 @@ h1 {
     color: #dc3545;
 }
 
+/* Room count colors */
+.apartment-table .col-rooms {
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.apartment-table .col-rooms.rooms-small {
+    background: #d4edda;
+    color: #155724;
+}
+
+.apartment-table .col-rooms.rooms-medium {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.apartment-table .col-rooms.rooms-large {
+    background: #ffe5d0;
+    color: #c45000;
+}
+
+.apartment-table .col-rooms.rooms-xlarge {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+[data-theme="dark"] .apartment-table .col-rooms.rooms-small {
+    background: #1e4620;
+    color: #90ee90;
+}
+
+[data-theme="dark"] .apartment-table .col-rooms.rooms-medium {
+    background: #5c4d1a;
+    color: #ffd700;
+}
+
+[data-theme="dark"] .apartment-table .col-rooms.rooms-large {
+    background: #5c3a1a;
+    color: #ffa500;
+}
+
+[data-theme="dark"] .apartment-table .col-rooms.rooms-xlarge {
+    background: #4a1a1a;
+    color: #ff6b6b;
+}
+
 .apartment-table .col-actions {
     white-space: nowrap;
 }
