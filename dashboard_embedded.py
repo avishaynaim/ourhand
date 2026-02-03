@@ -590,14 +590,15 @@ function changePageSize() {
     }
 }
 
+// Room color scheme v2 - 2024-02-03
 function roomColor(rooms) {
     if (!rooms) return null;
     const r = parseFloat(rooms);
     // Red for small (1-2.5), Orange (3-3.5), Yellow (4-4.5), Green (5+)
-    if (r <= 2.5) return { bg: '#ef4444', text: '#fff' };  // Red
-    if (r <= 3.5) return { bg: '#f97316', text: '#fff' };  // Orange
-    if (r <= 4.5) return { bg: '#eab308', text: '#fff' };  // Yellow
-    return              { bg: '#22c55e', text: '#fff' };   // Green (5+)
+    if (r <= 2.5) return { bg: '#ef4444', text: '#ffffff' };  // RED
+    if (r <= 3.5) return { bg: '#f97316', text: '#ffffff' };  // ORANGE
+    if (r <= 4.5) return { bg: '#eab308', text: '#ffffff' };  // YELLOW
+    return              { bg: '#22c55e', text: '#ffffff' };   // GREEN 5+
 }
 
 function buildingViz(floor, totalFloors) {
