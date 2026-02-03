@@ -226,44 +226,45 @@ h1 {
     text-align: center;
 }
 
+/* Room colors: small rooms = red, large rooms = green */
 .apartment-table .col-rooms.rooms-small {
-    background: #d4edda;
-    color: #155724;
-}
-
-.apartment-table .col-rooms.rooms-medium {
-    background: #fff3cd;
-    color: #856404;
-}
-
-.apartment-table .col-rooms.rooms-large {
-    background: #ffe5d0;
-    color: #c45000;
-}
-
-.apartment-table .col-rooms.rooms-xlarge {
     background: #f8d7da;
     color: #721c24;
 }
 
+.apartment-table .col-rooms.rooms-medium {
+    background: #ffe5d0;
+    color: #c45000;
+}
+
+.apartment-table .col-rooms.rooms-large {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.apartment-table .col-rooms.rooms-xlarge {
+    background: #d4edda;
+    color: #155724;
+}
+
 [data-theme="dark"] .apartment-table .col-rooms.rooms-small {
-    background: #1e4620;
-    color: #90ee90;
+    background: #4a1a1a;
+    color: #ff6b6b;
 }
 
 [data-theme="dark"] .apartment-table .col-rooms.rooms-medium {
-    background: #5c4d1a;
-    color: #ffd700;
-}
-
-[data-theme="dark"] .apartment-table .col-rooms.rooms-large {
     background: #5c3a1a;
     color: #ffa500;
 }
 
+[data-theme="dark"] .apartment-table .col-rooms.rooms-large {
+    background: #5c4d1a;
+    color: #ffd700;
+}
+
 [data-theme="dark"] .apartment-table .col-rooms.rooms-xlarge {
-    background: #4a1a1a;
-    color: #ff6b6b;
+    background: #1e4620;
+    color: #90ee90;
 }
 
 .apartment-table .col-actions {

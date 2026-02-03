@@ -82,17 +82,17 @@ function renderApartments(apartments) {
             }
         }
 
-        // Room color class (more rooms = better = green)
+        // Room color class (small=red, medium=orange, large=yellow, xlarge=green)
         let roomsClass = '';
         const rooms = apt.rooms || 0;
         if (rooms > 0 && rooms <= 2.5) {
-            roomsClass = 'rooms-xlarge'; // Red - small apartments
+            roomsClass = 'rooms-small'; // Red - 1-2.5 rooms
         } else if (rooms >= 3 && rooms <= 3.5) {
-            roomsClass = 'rooms-large'; // Orange
+            roomsClass = 'rooms-medium'; // Orange - 3-3.5 rooms
         } else if (rooms >= 4 && rooms <= 4.5) {
-            roomsClass = 'rooms-medium'; // Yellow
+            roomsClass = 'rooms-large'; // Yellow - 4-4.5 rooms
         } else if (rooms >= 5) {
-            roomsClass = 'rooms-small'; // Green - large apartments
+            roomsClass = 'rooms-xlarge'; // Green - 5+ rooms
         }
 
         return `
