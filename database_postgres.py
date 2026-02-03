@@ -177,9 +177,21 @@ class PostgreSQLDatabase:
                     url TEXT NOT NULL,
                     is_active INTEGER DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_scraped TIMESTAMP
+                    last_scraped TIMESTAMP,
+                    needs_initial_scrape BOOLEAN DEFAULT TRUE,
+                    initial_scrape_completed_at TIMESTAMP
                 )
             ''')
+
+            # Add needs_initial_scrape column if missing (migration for existing DBs)
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'search_urls' AND column_name = 'needs_initial_scrape'
+            """)
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE search_urls ADD COLUMN needs_initial_scrape BOOLEAN DEFAULT TRUE")
+                cursor.execute("ALTER TABLE search_urls ADD COLUMN initial_scrape_completed_at TIMESTAMP")
+                logger.info("✅ Added needs_initial_scrape columns to search_urls table")
 
             # Daily summaries table
             cursor.execute('''
@@ -1206,6 +1218,90 @@ class PostgreSQLDatabase:
         """Create database backup (PostgreSQL needs pg_dump - not implemented)"""
         logger.warning("⚠️  PostgreSQL backup requires pg_dump - use your hosting provider's backup tools")
         return None
+
+    # ============ Regional URL Methods ============
+
+    def add_regional_urls_if_needed(self) -> bool:
+        """
+        Populate the 7 regional URLs if no active regional URLs exist.
+        Returns True if regions were added, False if they already existed.
+        """
+        from constants import REGIONAL_URLS
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Check if any regional URLs already exist (by URL pattern)
+            regional_url_patterns = [url for _, url in REGIONAL_URLS]
+            cursor.execute(
+                'SELECT COUNT(*) FROM search_urls WHERE url = ANY(%s) AND is_active = 1',
+                (regional_url_patterns,)
+            )
+            existing_count = cursor.fetchone()[0]
+
+            if existing_count > 0:
+                logger.info(f"✅ Regional URLs already exist ({existing_count} active)")
+                return False
+
+            # Add all regional URLs
+            logger.info(f"🌍 Adding {len(REGIONAL_URLS)} regional URLs...")
+            for name, url in REGIONAL_URLS:
+                cursor.execute('''
+                    INSERT INTO search_urls (name, url, is_active, needs_initial_scrape)
+                    VALUES (%s, %s, 1, TRUE)
+                    ON CONFLICT DO NOTHING
+                ''', (name, url))
+                logger.info(f"  ✓ Added: {name}")
+
+            logger.info(f"✅ Added {len(REGIONAL_URLS)} regional URLs")
+            return True
+
+    def deactivate_old_urls(self) -> int:
+        """
+        Deactivate the old single 'All Israel Rentals' URL if it exists.
+        Returns number of URLs deactivated.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Deactivate URLs with the old single-URL pattern
+            old_url = "https://www.yad2.co.il/realestate/rent"
+            cursor.execute('''
+                UPDATE search_urls
+                SET is_active = 0
+                WHERE url = %s AND is_active = 1
+            ''', (old_url,))
+
+            deactivated = cursor.rowcount
+            if deactivated > 0:
+                logger.info(f"🔄 Deactivated {deactivated} old 'All Israel Rentals' URL(s)")
+
+            return deactivated
+
+    def get_region_needs_initial_scrape(self, url_id: int) -> bool:
+        """Check if a specific region needs initial scrape."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT needs_initial_scrape FROM search_urls WHERE id = %s',
+                (url_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return bool(row[0]) if row[0] is not None else True
+            return True  # Default to needing scrape if not found
+
+    def mark_region_initial_complete(self, url_id: int):
+        """Mark a region's initial scrape as complete."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE search_urls
+                SET needs_initial_scrape = FALSE,
+                    initial_scrape_completed_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            ''', (url_id,))
+            logger.info(f"✅ Marked region {url_id} initial scrape complete")
 
     # Delegate remaining methods
     def __getattr__(self, name):

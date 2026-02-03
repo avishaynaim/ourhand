@@ -134,6 +134,18 @@ PRICE_RANGES = [
     (20000, float('inf'))
 ]
 
+# ============ Regional URLs ============
+# 7 regional Yad2 URLs covering all of Israel
+REGIONAL_URLS = [
+    ("East", "https://www.yad2.co.il/realestate/rent/east"),
+    ("Jerusalem Area", "https://www.yad2.co.il/realestate/rent/jerusalem-area"),
+    ("Tel Aviv Area", "https://www.yad2.co.il/realestate/rent/tel-aviv-area"),
+    ("Center and Sharon", "https://www.yad2.co.il/realestate/rent/center-and-sharon"),
+    ("North and Valleys", "https://www.yad2.co.il/realestate/rent/north-and-valleys"),
+    ("Coastal North", "https://www.yad2.co.il/realestate/rent/coastal-north"),
+    ("South", "https://www.yad2.co.il/realestate/rent/south"),
+]
+
 # ============ Emoji Icons ============
 EMOJI_NEW = "🆕"
 EMOJI_PRICE_DROP = "📉"

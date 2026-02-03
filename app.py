@@ -24,7 +24,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from constants import (
     CONSECUTIVE_KNOWN_THRESHOLD, MIN_RESULTS_FOR_REMOVAL, MIN_PRICE, MAX_PRICE,
-    MAX_PAGES_FULL_SITE, INITIAL_SCRAPE_PAGE_DELAY, NORMAL_SCRAPE_PAGE_DELAY
+    MAX_PAGES_FULL_SITE, INITIAL_SCRAPE_PAGE_DELAY, NORMAL_SCRAPE_PAGE_DELAY,
+    REGIONAL_URLS
 )
 from concurrent.futures import ThreadPoolExecutor
 
@@ -110,14 +111,24 @@ class AdaptiveDelayManager:
         """Save strategy to database"""
         self.db.set_setting('delay_multiplier', str(self.current_multiplier))
 
-    def get_last_run_timestamp(self) -> Optional[int]:
-        """Get timestamp of last successful run in milliseconds."""
-        ts = self.db.get_setting('last_run_timestamp')
+    def get_last_run_timestamp(self, url_id: int = None) -> Optional[int]:
+        """Get timestamp of last successful run in milliseconds.
+        If url_id is provided, returns per-region timestamp."""
+        if url_id is not None:
+            key = f'region:{url_id}:last_run_timestamp'
+        else:
+            key = 'last_run_timestamp'
+        ts = self.db.get_setting(key)
         return int(ts) if ts else None
 
-    def set_last_run_timestamp(self, timestamp_ms: int):
-        """Set timestamp of current run in milliseconds."""
-        self.db.set_setting('last_run_timestamp', str(timestamp_ms))
+    def set_last_run_timestamp(self, timestamp_ms: int, url_id: int = None):
+        """Set timestamp of current run in milliseconds.
+        If url_id is provided, sets per-region timestamp."""
+        if url_id is not None:
+            key = f'region:{url_id}:last_run_timestamp'
+        else:
+            key = 'last_run_timestamp'
+        self.db.set_setting(key, str(timestamp_ms))
 
     def log_event(self, event_type: str, details: Dict = None):
         """Log scraping event"""
@@ -184,9 +195,6 @@ class AdaptiveDelayManager:
 class Yad2Monitor:
     """Main monitor class with all features integrated"""
 
-    # Threshold: if DB has fewer apartments than this, do full initial scrape
-    INITIAL_SCRAPE_THRESHOLD = 5000
-
     def __init__(self):
         logger.info("🚀 Initializing Enhanced Yad2Monitor (Full Israel Rentals)")
 
@@ -197,8 +205,7 @@ class Yad2Monitor:
         # Initialize components
         self.delay_manager = AdaptiveDelayManager(self.db)
 
-        # Check if we need initial full scrape
-        self.needs_initial_scrape = self._check_needs_initial_scrape()
+        # Per-region initial scrape is now handled in _load_search_urls
         self.proxy_manager = ProxyManager()
         self.proxy_rotator = ProxyRotator(self.proxy_manager)
         self.analytics = MarketAnalytics(self.db)
@@ -235,40 +242,37 @@ class Yad2Monitor:
         # Web server thread
         self.web_thread = None
 
-        if self.needs_initial_scrape:
-            logger.info("⚠️ Database has < 5000 apartments - will perform FULL SITE SCRAPE on first run")
+        # Log info about regions needing initial scrape
+        regions_needing_scrape = [s['name'] for s in self.search_urls if self.db.get_region_needs_initial_scrape(s['id'])]
+        if regions_needing_scrape:
+            logger.info(f"⚠️ {len(regions_needing_scrape)} regions need initial scrape: {', '.join(regions_needing_scrape)}")
         logger.info("✅ Initialization complete")
 
-    def _check_needs_initial_scrape(self) -> bool:
-        """Check if we need to do a full initial scrape (DB is empty or very small)"""
-        # Check for force flag first
-        if os.environ.get('FORCE_INITIAL_SCRAPE', '').lower() in ('true', '1', 'yes'):
-            logger.info("🔄 FORCE_INITIAL_SCRAPE=true - forcing full site scrape")
-            return True
-
-        try:
-            all_apts = self.db.get_all_apartments(active_only=False, limit=self.INITIAL_SCRAPE_THRESHOLD + 1)
-            count = len(all_apts)
-            logger.info(f"📊 Database has {count} apartments")
-            return count < self.INITIAL_SCRAPE_THRESHOLD
-        except Exception as e:
-            logger.warning(f"Could not check apartment count: {e}")
-            return True  # Assume we need initial scrape if can't check
-
     def _load_search_urls(self) -> List[Dict]:
-        """Load search URLs from database or environment"""
+        """Load search URLs from database, auto-populating regional URLs if needed"""
+        # Auto-populate regional URLs if needed
+        regions_added = self.db.add_regional_urls_if_needed()
+
+        if regions_added:
+            # Deactivate old single "All Israel Rentals" URL
+            self.db.deactivate_old_urls()
+
+        # Load active URLs
         urls = self.db.get_search_urls()
 
         if not urls:
-            # Default URL: ALL Israel rentals (700+ pages, 29K+ apartments)
-            default_url = os.environ.get(
-                "YAD2_URL",
-                "https://www.yad2.co.il/realestate/rent"
-            )
-            url_id = self.db.add_search_url("All Israel Rentals", default_url)
-            urls = [{'id': url_id, 'name': "All Israel Rentals", 'url': default_url}]
+            # Fallback: if still no URLs, add regional URLs directly
+            logger.warning("⚠️ No URLs found after auto-population, adding regions manually")
+            for name, url in REGIONAL_URLS:
+                self.db.add_search_url(name, url)
+            urls = self.db.get_search_urls()
 
-        logger.info(f"📋 Loaded {len(urls)} search URLs")
+        logger.info(f"📋 Loaded {len(urls)} search URLs (regions)")
+        for url in urls:
+            needs_scrape = self.db.get_region_needs_initial_scrape(url['id'])
+            status = "🔄 needs initial scrape" if needs_scrape else "✓ monitoring mode"
+            logger.info(f"  - {url['name']}: {status}")
+
         return urls
 
     def get_headers(self) -> Dict:
@@ -970,27 +974,39 @@ class Yad2Monitor:
                 logger.info("TELEGRAM_WEBHOOK_URL not set - webhook not configured (use polling or set webhook manually)")
 
     def run_once(self):
-        """Run a single scrape cycle"""
+        """Run a single scrape cycle for all regions"""
         all_new = []
         all_changes = []
 
         for search in self.search_urls:
-            logger.info(f"📋 Scraping: {search['name']}")
+            url_id = search['id']
+            region_name = search['name']
+            logger.info(f"📋 Scraping region: {region_name}")
 
-            # Choose scraping method based on initial scrape need
-            if self.needs_initial_scrape:
-                logger.info("🚀 Running INITIAL FULL SITE SCRAPE (parallel mode)...")
+            # Check if this region needs initial scrape
+            needs_initial = self.db.get_region_needs_initial_scrape(url_id)
+
+            # Also check FORCE_INITIAL_SCRAPE env var
+            force_initial = os.environ.get('FORCE_INITIAL_SCRAPE', '').lower() in ('true', '1', 'yes')
+
+            if needs_initial or force_initial:
+                if force_initial:
+                    logger.info(f"🔄 FORCE_INITIAL_SCRAPE=true - forcing full scrape for {region_name}")
+                else:
+                    logger.info(f"🚀 Running INITIAL FULL SCRAPE for region: {region_name}")
+
                 # scrape_full_site saves directly to DB every 1000 apartments
                 self.scrape_full_site(search['url'])
 
-                # Switch to monitoring mode
-                self.needs_initial_scrape = False
-                logger.info("🔄 Switching to monitoring mode for future runs")
+                # Mark this region's initial scrape as complete
+                self.db.mark_region_initial_complete(url_id)
+                logger.info(f"✅ Region {region_name} initial scrape complete - switching to monitoring mode")
 
                 # Update search URL last scraped
-                self.db.update_search_url_scraped(search['id'])
+                self.db.update_search_url_scraped(url_id)
             else:
                 # Normal monitoring scrape with smart-stop
+                logger.info(f"🔍 Monitoring mode for region: {region_name}")
                 apartments, pages_saved = self.scrape_all_pages(search['url'])
 
                 if apartments:
@@ -999,7 +1015,7 @@ class Yad2Monitor:
                     all_changes.extend(price_changes)
 
                     # Update search URL last scraped
-                    self.db.update_search_url_scraped(search['id'])
+                    self.db.update_search_url_scraped(url_id)
 
         if all_new or all_changes:
             self.send_notifications(all_new, all_changes)
@@ -1057,9 +1073,12 @@ class Yad2Monitor:
             'min_interval': int(os.environ.get('MIN_INTERVAL_MINUTES', 20)),
             'max_interval': int(os.environ.get('MAX_INTERVAL_MINUTES', 40))
         }
-        if self.needs_initial_scrape:
+        # Check if any regions need initial scrape
+        regions_needing_scrape = [s['name'] for s in self.search_urls if self.db.get_region_needs_initial_scrape(s['id'])]
+        if regions_needing_scrape:
             startup_info['initial_scrape'] = True
-            logger.info("⚠️ INITIAL FULL SITE SCRAPE WILL RUN - This may take 30-60 minutes")
+            startup_info['regions_to_scrape'] = regions_needing_scrape
+            logger.info(f"⚠️ INITIAL SCRAPE NEEDED for {len(regions_needing_scrape)} regions - This may take 30-60 minutes per region")
         self.notifier.send_startup_message(startup_info)
 
         iteration = 0
