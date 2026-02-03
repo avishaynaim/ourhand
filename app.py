@@ -25,7 +25,7 @@ from typing import Dict, List, Optional, Tuple
 from constants import (
     CONSECUTIVE_KNOWN_THRESHOLD, MIN_RESULTS_FOR_REMOVAL, MIN_PRICE, MAX_PRICE,
     MAX_PAGES_FULL_SITE, INITIAL_SCRAPE_PAGE_DELAY, NORMAL_SCRAPE_PAGE_DELAY,
-    REGIONAL_URLS
+    REGIONAL_URLS, MIN_PAGES_BEFORE_SMART_STOP
 )
 from concurrent.futures import ThreadPoolExecutor
 
@@ -792,11 +792,11 @@ class Yad2Monitor:
         page = 1
         consecutive_known = 0
 
-        logger.info(f"📊 Stop strategy: Will stop after {CONSECUTIVE_KNOWN_THRESHOLD} consecutive known listings")
+        logger.info(f"📊 Stop strategy: Will stop after {CONSECUTIVE_KNOWN_THRESHOLD} consecutive known listings (min {MIN_PAGES_BEFORE_SMART_STOP} pages)")
 
         while page <= max_pages:
             if page <= 5 or page % 10 == 0:
-                logger.info(f"📄 Page {page} (consecutive known: {consecutive_known}/{CONSECUTIVE_KNOWN_THRESHOLD})")
+                logger.info(f"📄 Page {page} (consecutive known: {consecutive_known}/{CONSECUTIVE_KNOWN_THRESHOLD}, min pages: {MIN_PAGES_BEFORE_SMART_STOP})")
 
             html = self.fetch_page(base_url, page)
             if not html:
@@ -833,10 +833,10 @@ class Yad2Monitor:
                             consecutive_known += 1
                             known_on_page += 1
 
-                        # Check if we've hit the threshold
-                        if consecutive_known >= CONSECUTIVE_KNOWN_THRESHOLD:
+                        # Check if we've hit the threshold (only after minimum pages checked)
+                        if consecutive_known >= CONSECUTIVE_KNOWN_THRESHOLD and page >= MIN_PAGES_BEFORE_SMART_STOP:
                             pages_saved = max_pages - page
-                            logger.info(f"🛑 Smart stop: {consecutive_known} consecutive known listings reached!")
+                            logger.info(f"🛑 Smart stop: {consecutive_known} consecutive known listings reached on page {page}!")
                             logger.info(f"💾 Saved approximately {pages_saved} page requests!")
                             self.delay_manager.set_last_run_timestamp(current_run_ts)
                             logger.info(f"✅ Monitoring complete: {len(all_apartments)} apartments from {page} pages")
