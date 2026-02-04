@@ -1378,9 +1378,11 @@ function renderTableBody() {
             '<td class="text-center">'+(sqmVal || '-')+'</td>' +
             '<td class="text-center" style="white-space:nowrap">'+miniBldg+' <span class="text-xs font-medium">'+floorLabel+'</span></td>' +
             '<td class="font-bold text-brand text-sm whitespace-nowrap">'+priceTrendHtml(apt)+price+'</td>' +
-            '<td class="text-center text-xs">' + (apt.total_price_change_pct != null ?
-                '<span class="' + (apt.total_price_change_pct < 0 ? 'text-green-600' : apt.total_price_change_pct > 0 ? 'text-red-600' : '') + '">' +
-                (apt.total_price_change_pct > 0 ? '+' : '') + apt.total_price_change_pct.toFixed(1) + '%</span>' : '-') + '</td>' +
+            '<td class="text-center text-xs">' + (apt.total_price_change_pct != null ? (() => {
+                const pct = parseFloat(apt.total_price_change_pct);
+                return '<span class="' + (pct < 0 ? 'text-green-600' : pct > 0 ? 'text-red-600' : '') + '">' +
+                (pct > 0 ? '+' : '') + pct.toFixed(1) + '%</span>';
+            })() : '-') + '</td>' +
             '<td class="text-xs whitespace-nowrap">'+firstSeen+'</td>' +
             '<td>'+(link ? '<a href="'+esc(link)+'" target="_blank" class="text-brand hover:underline text-xs font-medium">יד2</a>' : '-')+'</td>' +
             '</tr>';
