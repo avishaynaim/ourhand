@@ -15,7 +15,7 @@ ADAPTIVE_DELAY_MIN_SECONDS = 2
 ADAPTIVE_DELAY_MAX_SECONDS = 300
 
 # ============ Scraping Logic ============
-CONSECUTIVE_KNOWN_THRESHOLD = 25  # Stop after N consecutive known listings (must be > apartments per page)
+CONSECUTIVE_KNOWN_THRESHOLD = 50  # Stop after N consecutive known listings (must be > apartments per page)
 MIN_PAGES_BEFORE_SMART_STOP = 3  # Always check at least N pages before allowing smart-stop
 MIN_RESULTS_FOR_REMOVAL = 1000  # Minimum results before marking apartments as removed (high for 29K+ site)
 MAX_APARTMENTS_PER_REQUEST = 50000  # Limit for database queries (increased for 29K+ apartments)
