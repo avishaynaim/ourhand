@@ -25,7 +25,7 @@ from typing import Dict, List, Optional, Tuple
 from constants import (
     CONSECUTIVE_KNOWN_THRESHOLD, MIN_RESULTS_FOR_REMOVAL, MIN_PRICE, MAX_PRICE,
     MAX_PAGES_FULL_SITE, INITIAL_SCRAPE_PAGE_DELAY, NORMAL_SCRAPE_PAGE_DELAY,
-    REGIONAL_URLS, MAIN_URL, MIN_PAGES_BEFORE_SMART_STOP, VALID_SCRAPE_MODES, DEFAULT_SCRAPE_MODE
+    MIN_PAGES_BEFORE_SMART_STOP
 )
 from concurrent.futures import ThreadPoolExecutor
 
@@ -196,7 +196,7 @@ class Yad2Monitor:
     """Main monitor class with all features integrated"""
 
     def __init__(self):
-        logger.info("🚀 Initializing Enhanced Yad2Monitor (Full Israel Rentals)")
+        logger.info("🚀 Initializing Yad2Monitor (User-Subscribed URLs)")
 
         # Event to trigger immediate scrape (skip sleep)
         self.scrape_trigger = threading.Event()
@@ -245,55 +245,22 @@ class Yad2Monitor:
         # Web server thread
         self.web_thread = None
 
-        # Log info about regions needing initial scrape
-        regions_needing_scrape = [s['name'] for s in self.search_urls if self.db.get_region_needs_initial_scrape(s['id'])]
-        if regions_needing_scrape:
-            logger.info(f"⚠️ {len(regions_needing_scrape)} regions need initial scrape: {', '.join(regions_needing_scrape)}")
-        logger.info("✅ Initialization complete")
+        # Log info about URLs needing initial scrape
+        urls_needing_scrape = [s['name'] for s in self.search_urls if self.db.get_region_needs_initial_scrape(s['id'])]
+        if urls_needing_scrape:
+            logger.info(f"⚠️ {len(urls_needing_scrape)} URLs need initial scrape: {', '.join(urls_needing_scrape)}")
+        logger.info(f"✅ Initialization complete - {len(self.search_urls)} user URLs loaded")
 
     def _load_search_urls(self) -> List[Dict]:
-        """Load search URLs from database based on SCRAPE_MODE environment variable"""
-        # Get scrape mode from environment
-        scrape_mode = os.environ.get('SCRAPE_MODE', DEFAULT_SCRAPE_MODE).lower()
-        if scrape_mode not in VALID_SCRAPE_MODES:
-            logger.warning(f"⚠️ Invalid SCRAPE_MODE '{scrape_mode}', using '{DEFAULT_SCRAPE_MODE}'")
-            scrape_mode = DEFAULT_SCRAPE_MODE
+        """Load all active user-subscribed search URLs from database"""
+        urls = self.db.get_all_active_search_urls()
 
-        logger.info(f"🔧 Scrape mode: {scrape_mode.upper()}")
-
-        # Auto-populate URLs based on mode
-        if scrape_mode in ('regional', 'both'):
-            self.db.add_regional_urls_if_needed()
-
-        if scrape_mode in ('main', 'both'):
-            self.db.add_main_url_if_needed()
-
-        # Load active URLs filtered by mode
-        if scrape_mode == 'both':
-            # Get all URLs
-            urls = self.db.get_search_urls()
-        else:
-            # Filter by url_type
-            urls = self.db.get_search_urls(url_type=scrape_mode)
-
-        if not urls:
-            # Fallback: if still no URLs, add based on mode
-            logger.warning(f"⚠️ No URLs found for mode '{scrape_mode}', adding manually")
-            if scrape_mode in ('regional', 'both'):
-                for name, url in REGIONAL_URLS:
-                    self.db.add_search_url(name, url, url_type='regional')
-            if scrape_mode in ('main', 'both'):
-                name, url = MAIN_URL
-                self.db.add_search_url(name, url, url_type='main')
-            urls = self.db.get_search_urls(url_type=scrape_mode if scrape_mode != 'both' else None)
-
-        mode_label = "URLs" if scrape_mode == 'both' else f"{scrape_mode} URLs"
-        logger.info(f"📋 Loaded {len(urls)} search {mode_label}")
+        logger.info(f"📋 Loaded {len(urls)} user-subscribed search URLs")
         for url in urls:
             needs_scrape = self.db.get_region_needs_initial_scrape(url['id'])
             status = "🔄 needs initial scrape" if needs_scrape else "✓ monitoring mode"
-            url_type = url.get('url_type', 'unknown')
-            logger.info(f"  - {url['name']} [{url_type}]: {status}")
+            chat_id = url.get('chat_id', 'global')
+            logger.info(f"  - {url['name']} [user:{chat_id}]: {status}")
 
         return urls
 
@@ -1094,16 +1061,24 @@ class Yad2Monitor:
                 logger.info("TELEGRAM_WEBHOOK_URL not set - webhook not configured (use polling or set webhook manually)")
 
     def run_once(self):
-        """Run a single scrape cycle for all regions"""
+        """Run a single scrape cycle for all user-subscribed URLs"""
+        # Reload URLs each cycle to pick up new subscriptions
+        self.search_urls = self._load_search_urls()
+
+        if not self.search_urls:
+            logger.info("📋 No user-subscribed URLs to scrape")
+            return 0, 0
+
         all_new = []
         all_changes = []
 
         for search in self.search_urls:
             url_id = search['id']
             region_name = search['name']
-            logger.info(f"📋 Scraping region: {region_name}")
+            owner_chat_id = search.get('chat_id')
+            logger.info(f"📋 Scraping: {region_name} (user: {owner_chat_id or 'global'})")
 
-            # Check if this region needs initial scrape
+            # Check if this URL needs initial scrape
             needs_initial = self.db.get_region_needs_initial_scrape(url_id)
 
             # Also check FORCE_INITIAL_SCRAPE env var
@@ -1113,45 +1088,86 @@ class Yad2Monitor:
                 if force_initial:
                     logger.info(f"🔄 FORCE_INITIAL_SCRAPE=true - forcing full scrape for {region_name}")
                 else:
-                    logger.info(f"🚀 Running INITIAL FULL SCRAPE for region: {region_name}")
+                    logger.info(f"🚀 Running INITIAL FULL SCRAPE for: {region_name}")
+
+                # Notify the subscribing user that initial scrape is starting
+                if owner_chat_id and self.telegram_bot:
+                    self.telegram_bot.send_message(owner_chat_id,
+                        f"🔄 <b>סריקה ראשונית מתחילה</b>\n"
+                        f"📍 {region_name}\n"
+                        f"זה עלול לקחת זמן...")
 
                 # scrape_full_site saves directly to DB every 1000 apartments
                 self.scrape_full_site(search['url'])
 
-                # Mark this region's initial scrape as complete
+                # Mark this URL's initial scrape as complete
                 self.db.mark_region_initial_complete(url_id)
-                logger.info(f"✅ Region {region_name} initial scrape complete - switching to monitoring mode")
+                logger.info(f"✅ {region_name} initial scrape complete - switching to monitoring mode")
+
+                # Notify user that initial scrape is done
+                if owner_chat_id and self.telegram_bot:
+                    self.telegram_bot.send_message(owner_chat_id,
+                        f"✅ <b>סריקה ראשונית הושלמה!</b>\n"
+                        f"📍 {region_name}\n"
+                        f"מעכשיו תקבל התראות על שינויים.")
 
                 # Update search URL last scraped
                 self.db.update_search_url_scraped(url_id)
             else:
                 # Normal monitoring scrape with smart-stop
-                logger.info(f"🔍 Monitoring mode for region: {region_name}")
+                logger.info(f"🔍 Monitoring mode for: {region_name}")
                 apartments, pages_saved = self.scrape_all_pages(search['url'])
 
                 if apartments:
                     new_apts, price_changes, _ = self.process_apartments(apartments)
+
+                    # Send notifications only to the URL owner
+                    if owner_chat_id and self.telegram_bot:
+                        for apt in new_apts:
+                            # Check if apartment matches user's filters
+                            if self.db.apartment_matches_user_filters(owner_chat_id, apt):
+                                msg = self.telegram_bot.format_apartment_notification(apt, 'new')
+                                keyboard = self.telegram_bot.create_inline_keyboard(apt['id'])
+                                self.telegram_bot.send_message(owner_chat_id, msg, reply_markup=keyboard)
+
+                        for change in price_changes:
+                            apt = change['apartment']
+                            if self.db.apartment_matches_user_filters(owner_chat_id, apt):
+                                apt_copy = dict(apt)
+                                apt_copy['old_price'] = change['old_price']
+                                msg = self.telegram_bot.format_apartment_notification(apt_copy, 'price_drop')
+                                keyboard = self.telegram_bot.create_inline_keyboard(apt['id'])
+                                self.telegram_bot.send_message(owner_chat_id, msg, reply_markup=keyboard)
+
                     all_new.extend(new_apts)
                     all_changes.extend(price_changes)
 
                     # Update search URL last scraped
                     self.db.update_search_url_scraped(url_id)
 
-        if all_new or all_changes:
-            self.send_notifications(all_new, all_changes)
-
         # Check for daily digest time
         self.notifier.check_daily_digest_time()
 
         return len(all_new), len(all_changes)
 
-    def run_once_quick(self):
+    def run_once_quick(self, chat_id: str = None):
         """Run a single scrape cycle - first page only (for /scrape command).
+        If chat_id provided, only scrape that user's URLs.
         Returns (apartments, debug_info) without DB changes."""
         all_apartments = []
         debug_info = {'page_size': 0, 'h2_total': 0, 'h2_valid': 0, 'parsed': 0, 'rejected': 0}
 
-        for search in self.search_urls:
+        # Get URLs to scrape
+        if chat_id:
+            urls_to_scrape = self.db.get_user_search_urls(chat_id)
+        else:
+            urls_to_scrape = self.search_urls
+
+        if not urls_to_scrape:
+            debug_info['error'] = 'no_urls'
+            return all_apartments, debug_info
+
+        for search in urls_to_scrape:
             logger.info(f"📋 Quick scraping (page 1 only): {search['name']}")
             html = self.fetch_page(search['url'], 1)
             if not html:
@@ -1193,12 +1209,12 @@ class Yad2Monitor:
             'min_interval': int(os.environ.get('MIN_INTERVAL_MINUTES', 20)),
             'max_interval': int(os.environ.get('MAX_INTERVAL_MINUTES', 40))
         }
-        # Check if any regions need initial scrape
-        regions_needing_scrape = [s['name'] for s in self.search_urls if self.db.get_region_needs_initial_scrape(s['id'])]
-        if regions_needing_scrape:
+        # Check if any user URLs need initial scrape
+        urls_needing_scrape = [s['name'] for s in self.search_urls if self.db.get_region_needs_initial_scrape(s['id'])]
+        if urls_needing_scrape:
             startup_info['initial_scrape'] = True
-            startup_info['regions_to_scrape'] = regions_needing_scrape
-            logger.info(f"⚠️ INITIAL SCRAPE NEEDED for {len(regions_needing_scrape)} regions - This may take 30-60 minutes per region")
+            startup_info['regions_to_scrape'] = urls_needing_scrape
+            logger.info(f"⚠️ INITIAL SCRAPE NEEDED for {len(urls_needing_scrape)} URLs")
         self.notifier.send_startup_message(startup_info)
 
         iteration = 0
@@ -1244,14 +1260,11 @@ class Yad2Monitor:
 
 def main():
     """Main entry point"""
-    logger.info("🚀 Starting Yad2 Monitor - Enhanced Edition")
+    logger.info("🚀 Starting Yad2 Monitor - User Subscriptions Mode")
 
     # Validate environment
     if not os.environ.get("TELEGRAM_BOT_TOKEN"):
         logger.error("❌ TELEGRAM_BOT_TOKEN required")
-        exit(1)
-    if not os.environ.get("TELEGRAM_CHAT_ID"):
-        logger.error("❌ TELEGRAM_CHAT_ID required")
         exit(1)
 
     monitor = Yad2Monitor()

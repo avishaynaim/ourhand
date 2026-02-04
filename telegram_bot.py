@@ -38,6 +38,9 @@ class TelegramBot:
             commands = [
                 {"command": "start", "description": "התחלה והרשמה"},
                 {"command": "help", "description": "מדריך שימוש"},
+                {"command": "subscribe", "description": "הרשמה לכתובת יד2"},
+                {"command": "unsubscribe", "description": "הסרת כתובת מעקב"},
+                {"command": "myurls", "description": "הצג כתובות מעקב"},
                 {"command": "status", "description": "סטטוס המערכת והמשתמש"},
                 {"command": "stats", "description": "סטטיסטיקות שוק"},
                 {"command": "favorites", "description": "הצג מועדפים"},
@@ -195,6 +198,9 @@ class TelegramBot:
         command_handlers = {
             '/start': self.cmd_start,
             '/help': self.cmd_help,
+            '/subscribe': self.cmd_subscribe,
+            '/unsubscribe': self.cmd_unsubscribe,
+            '/myurls': self.cmd_myurls,
             '/status': self.cmd_status,
             '/stats': self.cmd_stats,
             '/favorites': self.cmd_favorites,
@@ -223,34 +229,153 @@ class TelegramBot:
 
         text = f"""
 🏠 <b>ברוך הבא ל-OurHand Monitor, {name}!</b>
-🇮🇱 <b>מנטר כל דירות להשכרה בישראל!</b>
 
 אני אעזור לך למצוא את הדירה המושלמת ביד2.
-אקבל עדכונים על דירות חדשות, שינויי מחיר ועוד.
+כדי להתחיל, שלח לי כתובת חיפוש מיד2 עם הפקודה /subscribe
 
-<b>📋 פקודות זמינות:</b>
+<b>🚀 התחל כאן:</b>
+/subscribe [כתובת יד2] - הרשמה למעקב
+/myurls - הצג כתובות מעקב
+
+<b>📋 פקודות נוספות:</b>
 /status - סטטוס המערכת והמשתמש
-/stats - סטטיסטיקות שוק
 /favorites - הצג מועדפים
 /search [טקסט] - חיפוש דירות
 /filter - ניהול פילטרים
 /pause - השהה התראות
 /resume - חידוש התראות
-/scrape - סריקה מיידית של יד2
-/analytics - תובנות שוק
+/scrape - סריקה מיידית
 /help - עזרה
 
-💡 <b>טיפ:</b> השתמש בפקודת /filter כדי להגדיר את ההעדפות שלך ולקבל התראות רלוונטיות בלבד!
+💡 <b>טיפ:</b> חפש ביד2, העתק את הכתובת ושלח:
+<code>/subscribe https://www.yad2.co.il/realestate/rent/tel-aviv-area</code>
 """
         if self.dashboard_url:
             text += f'\n🖥️ <a href="{self.dashboard_url}">פתח את לוח הבקרה</a>'
+        self.send_message(chat_id, text)
+
+    def cmd_subscribe(self, chat_id: str, args: List[str]):
+        """Handle /subscribe command - subscribe to a Yad2 URL"""
+        if not args:
+            self.send_message(chat_id,
+                "🔗 <b>הרשמה למעקב כתובת יד2</b>\n\n"
+                "שלח את כתובת החיפוש מיד2:\n"
+                "<code>/subscribe https://www.yad2.co.il/realestate/rent/...</code>\n\n"
+                "💡 <b>איך למצוא כתובת?</b>\n"
+                "1. חפש ביד2 עם הפילטרים שאתה רוצה\n"
+                "2. העתק את הכתובת מהדפדפן\n"
+                "3. שלח אותה כאן עם /subscribe")
+            return
+
+        url = args[0].strip()
+
+        # Validate URL
+        if 'yad2.co.il' not in url:
+            self.send_message(chat_id,
+                "❌ כתובת לא תקינה.\n"
+                "הכתובת חייבת להיות מיד2, לדוגמה:\n"
+                "<code>/subscribe https://www.yad2.co.il/realestate/rent/tel-aviv-area</code>")
+            return
+
+        # Ensure URL starts with https
+        if not url.startswith('http'):
+            url = 'https://' + url
+
+        # Extract a friendly name from the URL
+        name = url.split('/')[-1] if '/' in url else 'yad2'
+        # Clean up query params from name
+        if '?' in name:
+            name = name.split('?')[0]
+        if not name or name == 'rent':
+            name = 'All Israel'
+
+        try:
+            url_id = self.db.add_user_search_url(chat_id, name, url)
+            if url_id:
+                user_urls = self.db.get_user_search_urls(chat_id)
+                self.send_message(chat_id,
+                    f"✅ <b>נרשמת בהצלחה!</b>\n\n"
+                    f"📍 <b>שם:</b> {name}\n"
+                    f"🔗 <b>כתובת:</b> {url}\n\n"
+                    f"📋 סה\"כ כתובות מעקב: {len(user_urls)}\n\n"
+                    f"הסריקה הבאה תכלול את הכתובת הזו.\n"
+                    f"לצפייה בכתובות: /myurls")
+            else:
+                self.send_message(chat_id, "❌ שגיאה בהוספת הכתובת")
+        except Exception as e:
+            logger.error(f"Error in cmd_subscribe: {e}", exc_info=True)
+            self.send_message(chat_id, "❌ שגיאה בהוספת הכתובת")
+
+    def cmd_unsubscribe(self, chat_id: str, args: List[str]):
+        """Handle /unsubscribe command - remove a monitored URL"""
+        user_urls = self.db.get_user_search_urls(chat_id)
+
+        if not user_urls:
+            self.send_message(chat_id,
+                "אין לך כתובות מעקב 🤷‍♂️\n"
+                "הוסף כתובת עם /subscribe")
+            return
+
+        if args:
+            # Try to parse URL ID from args
+            try:
+                url_id = int(args[0])
+                success = self.db.remove_user_search_url(chat_id, url_id)
+                if success:
+                    self.send_message(chat_id, "✅ הכתובת הוסרה בהצלחה!")
+                else:
+                    self.send_message(chat_id, "❌ כתובת לא נמצאה")
+            except ValueError:
+                self.send_message(chat_id,
+                    "❌ שלח מספר כתובת להסרה.\n"
+                    "לדוגמה: <code>/unsubscribe 1</code>\n\n"
+                    "השתמש ב-/myurls לצפייה במספרי הכתובות")
+            return
+
+        # Show URLs with IDs for removal
+        text = "🗑️ <b>הסרת כתובת מעקב</b>\n\n"
+        text += "שלח <code>/unsubscribe [מספר]</code> להסרה:\n\n"
+
+        for u in user_urls:
+            text += f"<b>{u['id']}</b> - {u['name']}\n"
+            text += f"   🔗 {u['url'][:60]}...\n\n"
+
+        self.send_message(chat_id, text)
+
+    def cmd_myurls(self, chat_id: str, args: List[str]):
+        """Handle /myurls command - list monitored URLs"""
+        user_urls = self.db.get_user_search_urls(chat_id)
+
+        if not user_urls:
+            self.send_message(chat_id,
+                "📋 <b>אין לך כתובות מעקב</b>\n\n"
+                "הוסף כתובת עם:\n"
+                "<code>/subscribe https://www.yad2.co.il/realestate/rent/...</code>")
+            return
+
+        text = f"📋 <b>כתובות המעקב שלך</b> ({len(user_urls)})\n\n"
+
+        for u in user_urls:
+            last_scraped = str(u['last_scraped'])[:16] if u.get('last_scraped') else 'טרם נסרק'
+            needs_initial = u.get('needs_initial_scrape', True)
+            status = "🔄 ממתין לסריקה ראשונית" if needs_initial else f"✅ נסרק: {last_scraped}"
+
+            text += f"<b>{u['id']}. {u['name']}</b>\n"
+            text += f"   🔗 {u['url'][:60]}{'...' if len(u['url']) > 60 else ''}\n"
+            text += f"   {status}\n\n"
+
+        text += "להסרת כתובת: /unsubscribe [מספר]\nלהוספת כתובת: /subscribe [כתובת]"
         self.send_message(chat_id, text)
 
     def cmd_help(self, chat_id: str, args: List[str]):
         """Handle /help command"""
         text = """
 📖 <b>מדריך שימוש - OurHand Monitor</b>
-🇮🇱 <b>מנטר כל דירות להשכרה בישראל</b>
+
+<b>🔗 מעקב כתובות:</b>
+/subscribe [כתובת יד2] - הרשמה למעקב אחרי כתובת
+/unsubscribe - הסרת כתובת מעקב
+/myurls - הצג כתובות מעקב פעילות
 
 <b>פקודות בסיסיות:</b>
 /start - התחלה והרשמה
@@ -274,8 +399,8 @@ class TelegramBot:
 /scrape - הפעל סריקה מיידית של יד2
 
 <b>💡 דוגמאות שימוש:</b>
+• <code>/subscribe https://www.yad2.co.il/realestate/rent/tel-aviv-area</code>
 • <code>/search רמת גן</code> - חיפוש בעיר
-• <code>/search 5000 7000</code> - חיפוש לפי טווח מחירים
 • לחיצה על ⭐ בהתראה - הוספה למועדפים
 
 <b>🔔 התראות אוטומטיות:</b>
@@ -516,14 +641,24 @@ class TelegramBot:
             self.send_message(chat_id, "⚠️ פונקציית הסריקה לא זמינה כרגע.")
             return
 
-        self.send_message(chat_id, "🔍 <b>מתחיל סריקה מיידית (עמוד ראשון)...</b>")
+        # Check if user has any URLs
+        user_urls = self.db.get_user_search_urls(chat_id)
+        if not user_urls:
+            self.send_message(chat_id,
+                "❌ אין לך כתובות מעקב.\n"
+                "הוסף כתובת עם /subscribe קודם.")
+            return
+
+        self.send_message(chat_id,
+            f"🔍 <b>מתחיל סריקה מיידית (עמוד ראשון)...</b>\n"
+            f"📋 סורק {len(user_urls)} כתובות")
 
         try:
             import threading
             import time as _time
             def run_scrape():
                 try:
-                    apartments, debug_info = self.scrape_callback()
+                    apartments, debug_info = self.scrape_callback(chat_id)
 
                     # Send debug info about what the parser found
                     debug_msg = (

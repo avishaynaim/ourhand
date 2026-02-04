@@ -190,12 +190,13 @@ class PostgreSQLDatabase:
                 )
             ''')
 
-            # Search URLs table
+            # Search URLs table (now user-specific)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS search_urls (
                     id SERIAL PRIMARY KEY,
                     name TEXT NOT NULL,
                     url TEXT NOT NULL,
+                    chat_id TEXT,
                     is_active INTEGER DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_scraped TIMESTAMP,
@@ -203,6 +204,15 @@ class PostgreSQLDatabase:
                     initial_scrape_completed_at TIMESTAMP
                 )
             ''')
+
+            # Add chat_id column if missing (migration for existing DBs)
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'search_urls' AND column_name = 'chat_id'
+            """)
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE search_urls ADD COLUMN chat_id TEXT")
+                logger.info("Added chat_id column to search_urls table")
 
             # Add needs_initial_scrape column if missing (migration for existing DBs)
             cursor.execute("""
@@ -1009,14 +1019,62 @@ class PostgreSQLDatabase:
 
     # ============ Search URLs Methods ============
 
-    def add_search_url(self, name: str, url: str, url_type: str = 'regional') -> int:
-        """Add a search URL to monitor"""
+    def add_search_url(self, name: str, url: str, url_type: str = 'regional', chat_id: str = None) -> int:
+        """Add a search URL to monitor, optionally for a specific user"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('INSERT INTO search_urls (name, url, url_type) VALUES (%s, %s, %s) RETURNING id',
-                         (name, url, url_type))
+            cursor.execute(
+                'INSERT INTO search_urls (name, url, url_type, chat_id) VALUES (%s, %s, %s, %s) RETURNING id',
+                (name, url, url_type, chat_id))
             result = cursor.fetchone()
             return result[0] if result else None
+
+    def add_user_search_url(self, chat_id: str, name: str, url: str) -> int:
+        """Add a search URL for a specific Telegram user"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # Check if user already has this exact URL
+            cursor.execute(
+                'SELECT id FROM search_urls WHERE chat_id = %s AND url = %s AND is_active = 1',
+                (chat_id, url))
+            existing = cursor.fetchone()
+            if existing:
+                return existing[0]
+            cursor.execute(
+                'INSERT INTO search_urls (name, url, url_type, chat_id, is_active, needs_initial_scrape) '
+                'VALUES (%s, %s, %s, %s, 1, TRUE) RETURNING id',
+                (name, url, 'user', chat_id))
+            result = cursor.fetchone()
+            return result[0] if result else None
+
+    def remove_user_search_url(self, chat_id: str, url_id: int) -> bool:
+        """Deactivate a user's search URL"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'UPDATE search_urls SET is_active = 0 WHERE id = %s AND chat_id = %s',
+                (url_id, chat_id))
+            return cursor.rowcount > 0
+
+    def get_user_search_urls(self, chat_id: str, active_only: bool = True) -> List[Dict]:
+        """Get search URLs for a specific user"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            query = 'SELECT * FROM search_urls WHERE chat_id = %s'
+            params = [chat_id]
+            if active_only:
+                query += ' AND is_active = 1'
+            query += ' ORDER BY created_at DESC'
+            cursor.execute(query, params)
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_all_active_search_urls(self) -> List[Dict]:
+        """Get all active search URLs across all users"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute(
+                'SELECT * FROM search_urls WHERE is_active = 1 ORDER BY chat_id, created_at')
+            return [dict(row) for row in cursor.fetchall()]
 
     def update_search_url_scraped(self, url_id: int):
         """Update last scraped time"""

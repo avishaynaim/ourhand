@@ -44,24 +44,29 @@ railway up
 
 ### Data Flow
 ```
-Yad2.co.il → app.py (scraper) → database_postgres.py → web.py (API) → dashboard/Telegram
-                                      ↓
-                              notifications.py → Telegram users
+User subscribes via Telegram /subscribe → search_urls (per-user)
+                                             ↓
+Yad2.co.il → app.py (scraper per URL) → database_postgres.py → Telegram (URL owner)
+                                              ↓
+                                     web.py (API) → dashboard
 ```
 
 ### Key Modules
 - **`db_wrapper.py`** - Factory that returns `PostgreSQLDatabase` instance (requires `DATABASE_URL`)
 - **`database_postgres.py`** - All database operations (apartments, price_history, user_preferences, favorites)
-- **`telegram_bot.py`** - Webhook-based bot with 12 commands, per-user filters
+- **`telegram_bot.py`** - Webhook-based bot with commands including /subscribe, /unsubscribe, /myurls for per-user URL subscriptions
 - **`notifications.py`** - Notification routing, rate limiting, daily digests
 - **`analytics.py`** - Market statistics and trend analysis
 - **`config.py`** - Environment variable loading with validation
-- **`constants.py`** - All magic numbers and thresholds
+- **`constants.py`** - All magic numbers and thresholds (URLs are now user-subscribed, not hardcoded)
 
 ### Scraping Logic (app.py)
-- **Initial scrape** (DB < 5000 apartments): Scrapes all 700+ pages with fast 1-3s delays
-- **Monitoring mode**: Uses smart-stop after 6 consecutive known listings, 3-8s delays
+- **User-subscribed URLs**: Each user subscribes to Yad2 URLs via Telegram /subscribe
+- **Initial scrape** (per URL): Scrapes all pages with fast 1-3s delays
+- **Monitoring mode**: Uses smart-stop after consecutive known listings, 3-8s delays
 - `AdaptiveDelayManager` adjusts delays based on block/rate-limit events
+- Notifications sent only to the URL's subscribing user
+- URLs reloaded each cycle to pick up new subscriptions
 - Runs every 20-40 minutes (randomized)
 
 ### Database Schema (PostgreSQL)
@@ -77,7 +82,6 @@ All `/api/*` endpoints require `X-API-Key` header (except `/health`, `/ping`).
 
 **Required:**
 - `TELEGRAM_BOT_TOKEN` - Bot token from @BotFather
-- `TELEGRAM_CHAT_ID` - Your Telegram chat ID
 - `DATABASE_URL` - PostgreSQL connection string (auto-set on Railway)
 
 **Optional:**
