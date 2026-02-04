@@ -25,7 +25,7 @@ from typing import Dict, List, Optional, Tuple
 from constants import (
     CONSECUTIVE_KNOWN_THRESHOLD, MIN_RESULTS_FOR_REMOVAL, MIN_PRICE, MAX_PRICE,
     MAX_PAGES_FULL_SITE, INITIAL_SCRAPE_PAGE_DELAY, NORMAL_SCRAPE_PAGE_DELAY,
-    REGIONAL_URLS, MIN_PAGES_BEFORE_SMART_STOP
+    REGIONAL_URLS, MAIN_URL, MIN_PAGES_BEFORE_SMART_STOP, VALID_SCRAPE_MODES, DEFAULT_SCRAPE_MODE
 )
 from concurrent.futures import ThreadPoolExecutor
 
@@ -252,29 +252,48 @@ class Yad2Monitor:
         logger.info("✅ Initialization complete")
 
     def _load_search_urls(self) -> List[Dict]:
-        """Load search URLs from database, auto-populating regional URLs if needed"""
-        # Auto-populate regional URLs if needed
-        regions_added = self.db.add_regional_urls_if_needed()
+        """Load search URLs from database based on SCRAPE_MODE environment variable"""
+        # Get scrape mode from environment
+        scrape_mode = os.environ.get('SCRAPE_MODE', DEFAULT_SCRAPE_MODE).lower()
+        if scrape_mode not in VALID_SCRAPE_MODES:
+            logger.warning(f"⚠️ Invalid SCRAPE_MODE '{scrape_mode}', using '{DEFAULT_SCRAPE_MODE}'")
+            scrape_mode = DEFAULT_SCRAPE_MODE
 
-        if regions_added:
-            # Deactivate old single "All Israel Rentals" URL
-            self.db.deactivate_old_urls()
+        logger.info(f"🔧 Scrape mode: {scrape_mode.upper()}")
 
-        # Load active URLs
-        urls = self.db.get_search_urls()
+        # Auto-populate URLs based on mode
+        if scrape_mode in ('regional', 'both'):
+            self.db.add_regional_urls_if_needed()
+
+        if scrape_mode in ('main', 'both'):
+            self.db.add_main_url_if_needed()
+
+        # Load active URLs filtered by mode
+        if scrape_mode == 'both':
+            # Get all URLs
+            urls = self.db.get_search_urls()
+        else:
+            # Filter by url_type
+            urls = self.db.get_search_urls(url_type=scrape_mode)
 
         if not urls:
-            # Fallback: if still no URLs, add regional URLs directly
-            logger.warning("⚠️ No URLs found after auto-population, adding regions manually")
-            for name, url in REGIONAL_URLS:
-                self.db.add_search_url(name, url)
-            urls = self.db.get_search_urls()
+            # Fallback: if still no URLs, add based on mode
+            logger.warning(f"⚠️ No URLs found for mode '{scrape_mode}', adding manually")
+            if scrape_mode in ('regional', 'both'):
+                for name, url in REGIONAL_URLS:
+                    self.db.add_search_url(name, url, url_type='regional')
+            if scrape_mode in ('main', 'both'):
+                name, url = MAIN_URL
+                self.db.add_search_url(name, url, url_type='main')
+            urls = self.db.get_search_urls(url_type=scrape_mode if scrape_mode != 'both' else None)
 
-        logger.info(f"📋 Loaded {len(urls)} search URLs (regions)")
+        mode_label = "URLs" if scrape_mode == 'both' else f"{scrape_mode} URLs"
+        logger.info(f"📋 Loaded {len(urls)} search {mode_label}")
         for url in urls:
             needs_scrape = self.db.get_region_needs_initial_scrape(url['id'])
             status = "🔄 needs initial scrape" if needs_scrape else "✓ monitoring mode"
-            logger.info(f"  - {url['name']}: {status}")
+            url_type = url.get('url_type', 'unknown')
+            logger.info(f"  - {url['name']} [{url_type}]: {status}")
 
         return urls
 

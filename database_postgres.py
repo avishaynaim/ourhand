@@ -214,6 +214,17 @@ class PostgreSQLDatabase:
                 cursor.execute("ALTER TABLE search_urls ADD COLUMN initial_scrape_completed_at TIMESTAMP")
                 logger.info("✅ Added needs_initial_scrape columns to search_urls table")
 
+            # Add url_type column if missing (for SCRAPE_MODE support)
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'search_urls' AND column_name = 'url_type'
+            """)
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE search_urls ADD COLUMN url_type TEXT DEFAULT 'regional'")
+                # Update existing URLs to be regional type
+                cursor.execute("UPDATE search_urls SET url_type = 'regional' WHERE url_type IS NULL")
+                logger.info("✅ Added url_type column to search_urls table")
+
             # Daily summaries table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS daily_summaries (
@@ -668,14 +679,25 @@ class PostgreSQLDatabase:
             ''')
             return [dict(row) for row in cursor.fetchall()]
 
-    def get_search_urls(self, active_only: bool = True) -> List[Dict]:
-        """Get all search URLs"""
+    def get_search_urls(self, active_only: bool = True, url_type: str = None) -> List[Dict]:
+        """Get search URLs, optionally filtered by url_type ('regional', 'main', or None for all)"""
         with self.get_connection() as conn:
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            conditions = []
+            params = []
+
             if active_only:
-                cursor.execute('SELECT * FROM search_urls WHERE is_active = 1')
-            else:
-                cursor.execute('SELECT * FROM search_urls')
+                conditions.append('is_active = 1')
+
+            if url_type:
+                conditions.append('url_type = %s')
+                params.append(url_type)
+
+            query = 'SELECT * FROM search_urls'
+            if conditions:
+                query += ' WHERE ' + ' AND '.join(conditions)
+
+            cursor.execute(query, params)
             return [dict(row) for row in cursor.fetchall()]
 
     def get_scrape_stats(self, hours: int = 24) -> Dict:
@@ -987,12 +1009,12 @@ class PostgreSQLDatabase:
 
     # ============ Search URLs Methods ============
 
-    def add_search_url(self, name: str, url: str) -> int:
+    def add_search_url(self, name: str, url: str, url_type: str = 'regional') -> int:
         """Add a search URL to monitor"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('INSERT INTO search_urls (name, url) VALUES (%s, %s) RETURNING id',
-                         (name, url))
+            cursor.execute('INSERT INTO search_urls (name, url, url_type) VALUES (%s, %s, %s) RETURNING id',
+                         (name, url, url_type))
             result = cursor.fetchone()
             return result[0] if result else None
 
@@ -1488,13 +1510,47 @@ class PostgreSQLDatabase:
             logger.info(f"🌍 Adding {len(REGIONAL_URLS)} regional URLs...")
             for name, url in REGIONAL_URLS:
                 cursor.execute('''
-                    INSERT INTO search_urls (name, url, is_active, needs_initial_scrape)
-                    VALUES (%s, %s, 1, TRUE)
+                    INSERT INTO search_urls (name, url, is_active, needs_initial_scrape, url_type)
+                    VALUES (%s, %s, 1, TRUE, 'regional')
                     ON CONFLICT DO NOTHING
                 ''', (name, url))
                 logger.info(f"  ✓ Added: {name}")
 
             logger.info(f"✅ Added {len(REGIONAL_URLS)} regional URLs")
+            return True
+
+    def add_main_url_if_needed(self) -> bool:
+        """
+        Add the main Israel URL if it doesn't exist.
+        Returns True if URL was added, False if it already existed.
+        """
+        from constants import MAIN_URL
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            name, url = MAIN_URL
+
+            # Check if main URL already exists
+            cursor.execute(
+                'SELECT COUNT(*) FROM search_urls WHERE url = %s AND is_active = 1',
+                (url,)
+            )
+            existing_count = cursor.fetchone()[0]
+
+            if existing_count > 0:
+                logger.info(f"✅ Main URL already exists")
+                return False
+
+            # Add main URL
+            logger.info(f"🌍 Adding main URL: {name}...")
+            cursor.execute('''
+                INSERT INTO search_urls (name, url, is_active, needs_initial_scrape, url_type)
+                VALUES (%s, %s, 1, TRUE, 'main')
+                ON CONFLICT DO NOTHING
+            ''', (name, url))
+
+            logger.info(f"✅ Added main URL: {name}")
             return True
 
     def deactivate_old_urls(self) -> int:

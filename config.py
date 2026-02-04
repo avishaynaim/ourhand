@@ -53,6 +53,7 @@ class Config:
     MAX_INTERVAL_MINUTES: int = 90
     HTTP_TIMEOUT_SECONDS: int = 15
     MAX_RETRIES: int = 3
+    SCRAPE_MODE: str = "regional"  # 'regional', 'main', or 'both'
 
     # Server identification
     SERVER_NAME: Optional[str] = None
@@ -131,6 +132,13 @@ class Config:
                     f"MIN_INTERVAL_MINUTES ({config.MIN_INTERVAL_MINUTES}) must be less than "
                     f"MAX_INTERVAL_MINUTES ({config.MAX_INTERVAL_MINUTES})"
                 )
+
+            # Scrape mode
+            config.SCRAPE_MODE = os.getenv('SCRAPE_MODE', cls.SCRAPE_MODE).lower()
+            valid_modes = ['regional', 'main', 'both']
+            if config.SCRAPE_MODE not in valid_modes:
+                logger.warning(f"Invalid SCRAPE_MODE '{config.SCRAPE_MODE}', using 'regional'")
+                config.SCRAPE_MODE = 'regional'
 
             # Optional boolean variables
             config.ENABLE_WEB = cls._get_bool_env('ENABLE_WEB', cls.ENABLE_WEB)
@@ -274,6 +282,7 @@ class Config:
             f"Instant Notifications: {'Enabled' if self.INSTANT_NOTIFICATIONS else 'Disabled'}",
             f"Daily Digest: {'Enabled' if self.DAILY_DIGEST_ENABLED else 'Disabled'} (at {self.DAILY_DIGEST_HOUR}:00)",
             f"Scraping Interval: {self.MIN_INTERVAL_MINUTES}-{self.MAX_INTERVAL_MINUTES} minutes",
+            f"Scrape Mode: {self.SCRAPE_MODE}",
             f"Server Name: {self.SERVER_NAME or 'Not set'}",
             "============================",
         ]

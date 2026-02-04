@@ -135,6 +135,18 @@ PRICE_RANGES = [
     (20000, float('inf'))
 ]
 
+# ============ Scrape Mode ============
+# SCRAPE_MODE controls which URLs to scrape:
+#   'regional' - scrape 7 regional URLs (default)
+#   'main' - scrape single main Israel URL
+#   'both' - scrape both (use with caution - more requests)
+VALID_SCRAPE_MODES = ['regional', 'main', 'both']
+DEFAULT_SCRAPE_MODE = 'regional'
+
+# ============ Main URL ============
+# Single URL for all Israel rentals
+MAIN_URL = ("All Israel", "https://www.yad2.co.il/realestate/rent")
+
 # ============ Regional URLs ============
 # 7 regional Yad2 URLs covering all of Israel
 REGIONAL_URLS = [
