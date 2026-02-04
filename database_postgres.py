@@ -93,6 +93,27 @@ class PostgreSQLDatabase:
                 cursor.execute("ALTER TABLE apartments ADD COLUMN apartment_type TEXT")
                 logger.info("✅ Added apartment_type column to apartments table")
 
+            # Add original_price column if missing (for tracking total price change)
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'apartments' AND column_name = 'original_price'
+            """)
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE apartments ADD COLUMN original_price INTEGER")
+                logger.info("✅ Added original_price column to apartments table")
+                # Backfill original_price from price_history or current price
+                cursor.execute("""
+                    UPDATE apartments a
+                    SET original_price = COALESCE(
+                        (SELECT price FROM price_history
+                         WHERE apartment_id = a.id
+                         ORDER BY recorded_at ASC LIMIT 1),
+                        a.price
+                    )
+                    WHERE original_price IS NULL
+                """)
+                logger.info("✅ Backfilled original_price from price history")
+
             # Backfill apartment_type, neighborhood, city from item_info or raw_data
             cursor.execute("""
                 SELECT COUNT(*) FROM apartments
@@ -427,14 +448,15 @@ class PostgreSQLDatabase:
                     json.dumps(apartment, ensure_ascii=False), apartment['id']
                 ))
             else:
-                # Insert new
+                # Insert new - set original_price to first seen price
                 cursor.execute('''
-                    INSERT INTO apartments (id, title, price, price_text, location, street_address,
+                    INSERT INTO apartments (id, title, price, original_price, price_text, location, street_address,
                         item_info, apartment_type, link, image_url, rooms, sqm, floor, neighborhood, city,
                         data_updated_at, last_seen, is_active, raw_data)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 1, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 1, %s)
                 ''', (
                     apartment['id'], apartment.get('title'), apartment.get('price'),
+                    apartment.get('price'),  # original_price = first price seen
                     apartment.get('price_text'), apartment.get('location'), apartment.get('street_address'),
                     apartment.get('item_info'), apartment.get('apartment_type'),
                     apartment.get('link'), apartment.get('image_url'),
@@ -499,7 +521,9 @@ class PostgreSQLDatabase:
                         new_price = apt.get('price')
 
                         values.append((
-                            apt_id, apt.get('title'), new_price, apt.get('price_text'),
+                            apt_id, apt.get('title'), new_price,
+                            new_price,  # original_price - will be set on INSERT, not updated on conflict
+                            apt.get('price_text'),
                             apt.get('location'), apt.get('street_address'), apt.get('item_info'),
                             apt.get('apartment_type'),
                             apt.get('link'), apt.get('image_url'), apt.get('rooms'), apt.get('sqm'),
@@ -521,8 +545,9 @@ class PostgreSQLDatabase:
                                 logger.info(f"💰 Price change detected: {apt_id[:30]}... ₪{old_price:,} → ₪{new_price:,}")
 
                     # PostgreSQL upsert with ON CONFLICT
+                    # Note: original_price is only set on INSERT, not updated on conflict
                     execute_values(cursor, '''
-                        INSERT INTO apartments (id, title, price, price_text, location, street_address,
+                        INSERT INTO apartments (id, title, price, original_price, price_text, location, street_address,
                             item_info, apartment_type, link, image_url, rooms, sqm, floor, neighborhood, city,
                             data_updated_at, last_seen, is_active, raw_data)
                         VALUES %s
@@ -584,10 +609,20 @@ class PostgreSQLDatabase:
         """Get all apartments with optional limit to prevent memory issues"""
         with self.get_connection() as conn:
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            # Include calculated total_price_change_pct from original_price
+            query = '''
+                SELECT *,
+                    CASE
+                        WHEN original_price IS NOT NULL AND original_price > 0
+                        THEN ROUND(((price - original_price)::numeric / original_price) * 100, 1)
+                        ELSE NULL
+                    END as total_price_change_pct
+                FROM apartments
+            '''
             if active_only:
-                cursor.execute('SELECT * FROM apartments WHERE is_active = 1 ORDER BY last_seen DESC LIMIT %s', (limit,))
-            else:
-                cursor.execute('SELECT * FROM apartments ORDER BY last_seen DESC LIMIT %s', (limit,))
+                query += ' WHERE is_active = 1'
+            query += ' ORDER BY last_seen DESC LIMIT %s'
+            cursor.execute(query, (limit,))
             return [dict(row) for row in cursor.fetchall()]
 
     def search_apartments(self, query: str, limit: int = 100) -> List[Dict]:

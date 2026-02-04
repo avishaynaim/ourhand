@@ -1217,6 +1217,7 @@ function ensureTableStructure() {
         {key:'sqm', sortKey:'sqm', label:'📐 מ"ר', w:'100px', filter:'range'},
         {key:'floor', sortKey:'floor', label:'🏢 קומה', w:'100px', filter:'range'},
         {key:'price', sortKey:'price', label:'💰 מחיר', w:'130px', filter:'range'},
+        {key:'total_change', sortKey:'total_price_change_pct', label:'📊 שינוי%', w:'80px', filter:'range'},
         {key:'date', sortKey:'first_seen', label:'📅 תאריך', w:'90px', filter:'text'},
         {key:'link', sortKey:'', label:'קישור', w:'55px', filter:'none'}
     ];
@@ -1332,9 +1333,9 @@ function renderTableBody() {
 
     if (!apts.length) {
         if (!allApts.length) {
-            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-8 text-gray-400"><div class="text-2xl mb-2">⏳</div>טוען דירות, אנא המתן...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" class="text-center py-8 text-gray-400"><div class="text-2xl mb-2">⏳</div>טוען דירות, אנא המתן...</td></tr>';
         } else {
-            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-8 text-gray-400">🤷 אין דירות להצגה</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" class="text-center py-8 text-gray-400">🤷 אין דירות להצגה</td></tr>';
         }
         return;
     }
@@ -1377,6 +1378,9 @@ function renderTableBody() {
             '<td class="text-center">'+(sqmVal || '-')+'</td>' +
             '<td class="text-center" style="white-space:nowrap">'+miniBldg+' <span class="text-xs font-medium">'+floorLabel+'</span></td>' +
             '<td class="font-bold text-brand text-sm whitespace-nowrap">'+priceTrendHtml(apt)+price+'</td>' +
+            '<td class="text-center text-xs">' + (apt.total_price_change_pct != null ?
+                '<span class="' + (apt.total_price_change_pct < 0 ? 'text-green-600' : apt.total_price_change_pct > 0 ? 'text-red-600' : '') + '">' +
+                (apt.total_price_change_pct > 0 ? '+' : '') + apt.total_price_change_pct.toFixed(1) + '%</span>' : '-') + '</td>' +
             '<td class="text-xs whitespace-nowrap">'+firstSeen+'</td>' +
             '<td>'+(link ? '<a href="'+esc(link)+'" target="_blank" class="text-brand hover:underline text-xs font-medium">יד2</a>' : '-')+'</td>' +
             '</tr>';
