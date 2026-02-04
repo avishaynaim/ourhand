@@ -1364,9 +1364,11 @@ def create_web_app(database, analytics=None, telegram_bot=None, scrape_trigger=N
                 sent_count = 0
                 for apt in changes:
                     try:
-                        # Format message
-                        price_change = apt.get('price_change', 0)
-                        price_change_pct = apt.get('price_change_pct', 0)
+                        # Format message - handle None values
+                        price_change = apt.get('price_change') or 0
+                        price_change_pct = apt.get('price_change_pct') or 0
+                        previous_price = apt.get('previous_price') or 0
+                        current_price = apt.get('price') or 0
                         emoji = "📉" if price_change < 0 else "📈"
 
                         message = f"{emoji} <b>שינוי מחיר</b>\n\n"
@@ -1376,7 +1378,7 @@ def create_web_app(database, analytics=None, telegram_bot=None, scrape_trigger=N
                             if apt.get('neighborhood'):
                                 message += f", {apt['neighborhood']}"
                             message += "\n"
-                        message += f"💰 ₪{apt.get('previous_price', 0):,.0f} → ₪{apt.get('price', 0):,.0f}\n"
+                        message += f"💰 ₪{previous_price:,.0f} → ₪{current_price:,.0f}\n"
                         message += f"📊 {price_change_pct:+.1f}% ({price_change:+,.0f}₪)\n"
                         if apt.get('rooms'):
                             message += f"🛏️ {apt['rooms']} חדרים"
